@@ -1,2 +1,6 @@
+name = "UncertaintyModel"
+authors = ["mt-digital"]
+[compat]
+julia = "1.6.2"
 [deps]
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
