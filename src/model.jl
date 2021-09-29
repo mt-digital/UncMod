@@ -10,169 +10,176 @@
 using Agents
 using Distributions
 using DrWatson
-# using Random
+using Parameters
+using StatsBase
 
 
-# Agents may be in one of two groups, call them A and B.
-@enum Group GroupA GroupB
+# Agents may be in one of two groups, call them 1 and 2.
+@enum Group Group1 Group2
 
-# Agents may perform one of two behaviors, call them A and B.
-@enum Behavior BehaviorA BehaviorB
 
-# Agents may adopt one of three social learning strategies.
-@enum SocialLearningStrategy Rand Conformist Success
+# Agents may perform one of two behaviors, call them 1 and 2.
+@enum Behavior Behavior1 Behavior2
 
-# Two basic types of learning strategies.
-# @enum LearningStrategy Individual Social
 
-# Environments may be in one of two payoff states.
+# Each behavior may be in one of two payoff states.
 @enum PayoffState Low High
 
-@enum EnvironmentLabel EnvA EnvB
 
-"Agents may be in one of two (or a number of) environments."
-struct Environment
-    label::EnvironmentLabel
-    state::PayoffState
-    behavior::Behavior  # The behavior that gets payoff_multiplier*(w + b) payoff.
-    uncertainty::Float64
-    payoff_multiplier::Float64
+"""
+The BehaviorPayoffStructure is provided by the 'Environment', which is not
+directly represented in this model, but is useful to talk about as the 
+thing that yields payoffs with a specified BehaviorPayoffStructure. 
+The Environment
+"""
+struct BehaviorPayoffStructure
+    high_payoff::Float64
+    low_state_frac::Float64 # cᵢ, which reduces so the Low payoff to cᵢπᵢ. 
+    reliability::Float64 # How likely behavior results in High payoff, ρᵢ.
 end
 
+"""
+Generate a payoff that will be distributed to an agent performing the 
+behavior according to 
+"""
+function generate_payoff(payoff_structure::BehaviorPayoffStructure)
+    
+    # With probability equal to "uncertainty" the BehaviorPayoff will be in a
+    # Low state.
+    if rand() < payoff_structure.reliability
+        payoff = payoff_structure.high_payoff
+    else
+        payoff = payoff_structure.high_payoff * payoff_structure.low_state_frac
+    end
 
-# mutable struct IndividualLearningLedger
-#     "Combinations of {BEHAVIOR}{ENVIRONMENT}"
-#     AA::Float64
-#     AB::Float64
-#     BA::Float64
-#     BB::Float64
-# end
+    return payoff
+end
 
-# function reset_ledger!(ledger::IndividualLearningLedger)
-#     ledger.AA = 0.0; ledger.AB = 0.0; ledger.BA = 0.0; ledger.BB = 0.0;
-# end
 
 "Agent social learning strategies have three heritable components"
-struct LearningStrategy
-    soc_learn_freq::Float64
-    sl_strategy::SocialLearningStrategy
-    parochialism::Float64
+@with_kw struct LearningStrategy
+
+    # Frequency of social learning versus asocial learning (trial and error).
+    soclearnfreq::Float64 = rand()
+    
+    # Actually "greediness" value ϵ, adapted for our context. This one can
+    # be updated through social learning.
+    exploration::Float64 = rand()
+    
+    # Homophily of 0 indicates teachers chosen randomly; 1 indcates 
+    # an in-group member is always chosen. Again, could be evolved or
+    # influenced.
+    homophily::Float64 = rand()
+
+    # How many others we learn from could be an important parameter.
+    nteachers::Float64 = 10
 end
 
 
-IndividualLearningLedger = Dict{Tuple{Behavior, EnvironmentLabel}, Float64}
 
 """
+
 """
 mutable struct LearningAgent <: AbstractAgent
+    
     # Constant factors and parameters.
     id::Int
     group::Group
 
-    # Location may be one of two environments.
-    location::Environment
-
     # Learned environmental strategy.
     behavior::Behavior
     
-    # Evolved factors and parameters.
+    # Learning strategy components that may be set constant, learned, or
+    # evolved; see LearningStrategy struct above for definition.
     learning_strategy::LearningStrategy
 
     # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
     # some agents' payoffs to be higher just because they performed a behavior
     # before another.
-    prev_payoff::Float64
+    prev_net_payoff::Float64
     step_payoff::Float64
     net_payoff::Float64
 
     # The ledger keeps track of individually-learned payoffs in each 
     # behavior-environment pair.
-    ledger::IndividualLearningLedger
+    ledger::Dict{Behavior, Float64}
 end
-
-
-
-
-
-
-
-"""
-Step the environment forward in time to possibly change its state
-with probability depending on initialization parameters.
-"""
-function environment_step!(environment::Environment)
-    # If random uniform draw less than (1 - ambiguity), change payoff state.
-    if environment.uncertainty < rand()
-        if environment.state == Low
-            environment.state = High
-        else
-            environment.state = Low
-        end
-    end
-end
-
-
-"""
-Calculate payoff to focal_agent operating in the g
-"""
-function getpayoff!(focal_agent::LearningAgent, 
-                    environment::Environment,
-                    model::ABM)
-
-    # Calculate payoff given agent strategy and environment.
-    if focal_agent.behavior == environment.behavior
-        payoff = payoff_multiplier(environment, model) * (model.W + model.B) 
-    else
-        payoff = payoff_multiplier(environment, model) * (model.W - model.B) 
-    end
-    
-    # Increase net payoffs for focal_agent.
-    focal_agent.step_payoff = payoff
-end
-
-
-function payoff_multiplier(environment)
-    # return draw from normal distribution with params spec'd to environment state.
-end
-
 
 
 """
 Arguments:
-    group_env_corr (Float64): Amount initial behaviors & identities correlate
-        with environment.
+    group: Groups are possibly correlated with behavior
+    model: Contains initial behaviors & identities correlate with environment.
 """
-function init_agent(agent_idx::Int64, group::Group, group_env_corr::Float64)
+function init_learning_strategy(group, model)
 
-    # TODO Create and set variables to construct new LearningAgent.
-    LearningAgent(agent_idx, group ... )
+    params = model.properties
+    if haskey(params, :nteachers) 
+        learning_strategy = LearningStrategy(nteachers = model.properties[:nteachers])
+    elseif haskey(params, :initlearningstrategies)
+        learning_strategy = params[:initlearningstrategies][group]
+    else
+        learning_strategy = LearningStrategy()
+    end
     
+    return learning_strategy
+end
+
+
+function init_ledger()
+    return Dict(Behavior1 => 0.0, Behavior2 => 0.0)
 end
 
 
 
 """
 """
-function uncertainty_learning_model(numagents=6, ; model_parameters...)
+function uncertainty_learning_model(; 
+                                    nagents = 100,
+                                    minority_frac = 0.5, 
+                                    environment = Dict(
+                                        Behavior1 => 
+                                            BehaviorPayoffStructure(0.5, 2.0, 0.5),
+                                        Behavior2 => 
+                                            BehaviorPayoffStructure(0.25, 1.0, 0.25)
+                                    ),
+                                    # payoff_learning_bias = false,
+                                    model_parameters...)
+    
+    params = merge(
+        Dict(model_parameters), 
+        Dict(:minority_frac => minority_frac),
+        Dict(:environment => environment)
+    )
     
     # Initialize model. 
     model = ABM(LearningAgent, scheduler = Schedulers.fastest;
                 properties = params)
+
+    function add_soclearn_agent!(group::Group)
+        add_agent!(model, 
+                   group, 
+                   rand(instances(Behavior)),
+                   init_learning_strategy(group, model), 
+                   0.0, 0.0, 0.0, 
+                   init_ledger())
+    end
     
-    for ii in 1:numagents
-        if ii < (numagents / 2)
-            add_agent!(init_agent(ii, GroupA, group_env_corr), model)
+    for ii in 1:nagents
+        if ii < (nagents * minority_frac / 2)
+            add_soclearn_agent!(Group1)
         else
-            add_agent!(init_agent(ii, GroupB, gropu_env_corr), model)
+            add_soclearn_agent!(Group2)
         end
     end
+
+    return model
 end
 
 
 """
 """
 function agent_step!(focal_agent::LearningAgent, 
-                     environment::Environment,
                      model::ABM)
 
     # First, determine whether learning is individual or social for this step.
@@ -180,13 +187,103 @@ function agent_step!(focal_agent::LearningAgent,
     # if random uniform draw > freq_indiv_learn then set to Social
     if learning_strategy == Social
         # select teacher based on parochialism and social learning strategy.
-        teachers = filter(
-            other_agent -> other_agent.id != focal_agent.id,
-            collect(allagents(model))
-        )
+        teachers = select_teachers(focal_agent, model)
+        behavior = select_behavior!(focal_agent, teachers)
+    else
+        # Select behavior based on individual learning with probability ϵ
+        behavior = select_behavior!(focal_agent)
     end
 
-    getsteppayoff!(focal_agent, environment, model)
+    # focal_agent.step_payoff = generate_payoff(
+    step_payoff = generate_payoff(
+        model.properties.payoff_structures[behavior]
+    )
+
+    focal_agent.net_payoff += step_payoff
+end
+
+
+function select_teachers(focal_agent::LearningAgent, model::ABM)
+
+    in_group = focal_agent.group
+    if in_group == Group1
+        out_group = Group2
+    else
+        out_group = Group1
+    end
+
+    teachers = LearningAgent[]
+    possible_teachers = filter(agent -> agent != focal_agent, collect(allagents(model)))
+
+    for _ in 1:focal_agent.learning_strategy.nteachers
+
+        if (focal_agent.learning_strategy.homophily == 1.0) || 
+           (rand() < ((1 + focal_agent.homophily) / 2.0))
+
+            teacher_group = in_group
+        else
+            teacher_group = out_group
+        end
+
+        group_possible_teachers = filter(
+            agent -> (agent.group == teacher_group),
+            possible_teachers
+        )
+
+        if length(group_possible_teachers) == 0
+            group_possible_teachers = possible_teachers
+        end
+        
+        teacheridx = rand(1:length(group_possible_teachers))
+
+        push!(teachers, group_possible_teachers[teacheridx])
+
+        deleteat!(possible_teachers, teacheridx)
+
+
+        # if model.properties.payoff_bias
+
+        #     possible_teacher_payoffs = map(t -> t.prev_net_payoff,
+        #                                    possible_teachers)
+
+        #     push!(
+        #         teachers, 
+        #         sample(possible_teachers, Weights(map(t -> t.net_payoff)))
+        #     )
+        # end
+    end
+
+    return teachers
+end
+
+function select_behavior!(focal_agent::LearningAgent, 
+                          teachers = nothing)
+
+    behavior::Behavior
+
+    if isnothing(teachers)
+        # Asocial learning.
+        behavior = findmax(focal_agent.ledger)[2]
+    else
+        # Social learning via conformist transmission, i.e., adopt most common behavior.
+        n_using1 = count(behavior -> behavior == Behavior1,
+                         map(teacher -> teacher.behavior, teachers))
+
+        if n_using1 > length(teachers) / 2.0
+            behavior = Behavior1
+        elseif n_using1 < length(teachers) / 2.0
+            behavior = Behavior2 
+        else 
+            behavior = rand([Behavior1, Behavior2])
+        end
+    end
+
+    # Whatever the learning result, override what was learned and select at 
+    # random with probability equal to agent's exploration value in 
+    # learning strategy.
+    if rand() < focal_agent.learning_strategy.exploration
+        behavior = rand([Behavior1, Behavior2])
+    end
 end
 
 
@@ -263,20 +360,10 @@ end
 Perhaps terminate when value p has stabilized for all agents? For now, though,
 we can just run for a certain number of steps and I'll comment this out.
 """
-# function terminate(model, s)
-
-# end
-
-
-"""
-"""
-function single_trial(; kwargs...)
-    model = model_fun_name(; kwargs...)
-
-    agent_data, model_data = run!(model, agent_step!, model_step!, terminate;
-             # adata = agentdata_columns,
-             # mdata = modeldata_columns
-             )
-
-    return agent_data, model_data
+function terminate(model, s)
+    if model.properties.n_rounds_elapsed == model.n_rounds_max
+        return true
+    else
+        return false
+    end
 end

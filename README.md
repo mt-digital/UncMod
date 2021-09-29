@@ -1,5 +1,10 @@
 # UncertaintyModel
 
+This project models the evolution of social learning under environmental 
+uncertainty.
+
+## Model setup using DrWatson
+
 This code base is using the Julia Language and [DrWatson](https://juliadynamics.github.io/DrWatson.jl/stable/)
 to make a reproducible scientific project named
 > UncertaintyModel
@@ -20,3 +25,14 @@ To (locally) reproduce this project, do the following:
 
 This will install all necessary packages for you to be able to run the scripts and
 everything should work out of the box.
+
+
+## Tests
+
+Unit tests ensure the model is working properly and provide documentation of
+the model API and functionality. To run the tests, run the test script from a
+terminal:
+
+```
+julia src/test/test_model.jl
+```
