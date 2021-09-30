@@ -38,6 +38,7 @@ struct BehaviorPayoffStructure
     reliability::Float64 # How likely behavior results in High payoff, ρᵢ.
 end
 
+
 """
 Generate a payoff that will be distributed to an agent performing the 
 behavior according to 
@@ -80,7 +81,7 @@ end
 """
 
 """
-mutable struct LearningAgent <: AbstractAgent
+@with_kw mutable struct LearningAgent <: AbstractAgent
     
     # Constant factors and parameters.
     id::Int
@@ -91,18 +92,20 @@ mutable struct LearningAgent <: AbstractAgent
     
     # Learning strategy components that may be set constant, learned, or
     # evolved; see LearningStrategy struct above for definition.
-    learning_strategy::LearningStrategy
+    learning_strategy::LearningStrategy = LearningStrategy()
 
     # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
     # some agents' payoffs to be higher just because they performed a behavior
     # before another.
-    prev_net_payoff::Float64
-    step_payoff::Float64
-    net_payoff::Float64
+    prev_net_payoff::Float64 = 0.0
+    step_payoff::Float64 = 0.0
+    net_payoff::Float64 = 0.0
 
     # The ledger keeps track of individually-learned payoffs in each 
     # behavior-environment pair.
-    ledger::Dict{Behavior, Float64}
+    ledger::Dict{Behavior, Float64} = Dict(Behavior1 => 0.0, Behavior2 => 0.0)
+
+    age::Int64 = 0
 end
 
 
@@ -114,22 +117,20 @@ Arguments:
 function init_learning_strategy(group, model)
 
     params = model.properties
+
     if haskey(params, :nteachers) 
         learning_strategy = LearningStrategy(nteachers = model.properties[:nteachers])
+
     elseif haskey(params, :initlearningstrategies)
         learning_strategy = params[:initlearningstrategies][group]
+
     else
         learning_strategy = LearningStrategy()
+
     end
     
     return learning_strategy
 end
-
-
-function init_ledger()
-    return Dict(Behavior1 => 0.0, Behavior2 => 0.0)
-end
-
 
 
 """
@@ -156,110 +157,31 @@ function uncertainty_learning_model(;
     model = ABM(LearningAgent, scheduler = Schedulers.fastest;
                 properties = params)
 
-    function add_soclearn_agent!(group::Group)
-        add_agent!(model, 
-                   group, 
-                   rand(instances(Behavior)),
-                   init_learning_strategy(group, model), 
-                   0.0, 0.0, 0.0, 
-                   init_ledger())
+    function add_soclearn_agent!(idx::Int64, group::Group)
+        # For now initialize behaviors randomly. These can be modified after
+        # initialization as needed for different experiments.
+        add_agent!(LearningAgent(
+                       id = idx,
+                       group = group, 
+                       behavior = rand(instances(Behavior)),
+                       learning_strategy = init_learning_strategy(group, model) 
+                   ), 
+                   model)
     end
     
     for ii in 1:nagents
         if ii < (nagents * minority_frac / 2)
-            add_soclearn_agent!(Group1)
+            add_soclearn_agent!(ii, Group1)
         else
-            add_soclearn_agent!(Group2)
+            add_soclearn_agent!(ii, Group2)
         end
     end
 
     return model
 end
 
-
-"""
-"""
-function agent_step!(focal_agent::LearningAgent, 
-                     model::ABM)
-
-    # First, determine whether learning is individual or social for this step.
-    learning_strategy::LearningStrategy = Individual
-    # if random uniform draw > freq_indiv_learn then set to Social
-    if learning_strategy == Social
-        # select teacher based on parochialism and social learning strategy.
-        teachers = select_teachers(focal_agent, model)
-        behavior = select_behavior!(focal_agent, teachers)
-    else
-        # Select behavior based on individual learning with probability ϵ
-        behavior = select_behavior!(focal_agent)
-    end
-
-    # focal_agent.step_payoff = generate_payoff(
-    step_payoff = generate_payoff(
-        model.properties.payoff_structures[behavior]
-    )
-
-    focal_agent.net_payoff += step_payoff
-end
-
-
-function select_teachers(focal_agent::LearningAgent, model::ABM)
-
-    in_group = focal_agent.group
-    if in_group == Group1
-        out_group = Group2
-    else
-        out_group = Group1
-    end
-
-    teachers = LearningAgent[]
-    possible_teachers = filter(agent -> agent != focal_agent, collect(allagents(model)))
-
-    for _ in 1:focal_agent.learning_strategy.nteachers
-
-        if (focal_agent.learning_strategy.homophily == 1.0) || 
-           (rand() < ((1 + focal_agent.homophily) / 2.0))
-
-            teacher_group = in_group
-        else
-            teacher_group = out_group
-        end
-
-        group_possible_teachers = filter(
-            agent -> (agent.group == teacher_group),
-            possible_teachers
-        )
-
-        if length(group_possible_teachers) == 0
-            group_possible_teachers = possible_teachers
-        end
-        
-        teacheridx = rand(1:length(group_possible_teachers))
-
-        push!(teachers, group_possible_teachers[teacheridx])
-
-        deleteat!(possible_teachers, teacheridx)
-
-
-        # if model.properties.payoff_bias
-
-        #     possible_teacher_payoffs = map(t -> t.prev_net_payoff,
-        #                                    possible_teachers)
-
-        #     push!(
-        #         teachers, 
-        #         sample(possible_teachers, Weights(map(t -> t.net_payoff)))
-        #     )
-        # end
-    end
-
-    return teachers
-end
-
-function select_behavior!(focal_agent::LearningAgent, 
-                          teachers = nothing)
-
-    behavior::Behavior
+function learn_behavior(focal_agent::LearningAgent, 
+                        teachers = nothing)
 
     if isnothing(teachers)
         # Asocial learning.
@@ -284,7 +206,114 @@ function select_behavior!(focal_agent::LearningAgent,
     if rand() < focal_agent.learning_strategy.exploration
         behavior = rand([Behavior1, Behavior2])
     end
+
+    return behavior
 end
+
+
+function select_behavior!(focal_agent, model)
+    
+    # First, determine whether learning is individual or social for this step.
+    focal_soclearnfreq = focal_agent.learning_strategy.soclearnfreq    
+
+    if (focal_soclearnfreq == 1.0) || (rand() < focal_soclearnfreq) 
+        # Select teacher based on parochialism and social learning strategy.
+        teachers = select_teachers(focal_agent, model)
+        # println("Teachers:")
+        # println(teachers)
+        behavior = learn_behavior(focal_agent, teachers)
+    else
+        # Select behavior based on individual learning with probability ϵ
+        behavior = learn_behavior(focal_agent)
+    end
+
+    focal_agent.behavior = behavior
+
+    return behavior
+end
+
+
+"""
+"""
+function agent_step!(focal_agent::LearningAgent, 
+                     model::ABM)
+
+    behavior = select_behavior!(focal_agent)
+
+    # focal_agent.step_payoff = generate_payoff(
+    step_payoff = generate_payoff(
+        model.properties.payoff_structures[behavior]
+    )
+
+    focal_agent.net_payoff += step_payoff
+end
+
+
+function select_teachers(focal_agent::LearningAgent, model::ABM)
+
+    in_group = focal_agent.group
+    if in_group == Group1
+        out_group = Group2
+    else
+        out_group = Group1
+    end
+
+    teachers = LearningAgent[]
+    possible_teachers = filter(agent -> agent != focal_agent, collect(allagents(model)))
+
+    nteachers = focal_agent.learning_strategy.nteachers
+
+    for _ in 1:nteachers
+
+        homophily = focal_agent.learning_strategy.homophily
+
+        if (homophily == 1.0) || 
+           (rand() < ((1 + homophily) / 2.0))
+
+            teacher_group = in_group
+        else
+            teacher_group = out_group
+        end
+
+        group_possible_teachers = filter(
+            agent -> (agent.group == teacher_group),
+            possible_teachers
+        )
+
+        if length(group_possible_teachers) == 0
+            group_possible_teachers = possible_teachers
+        end
+        
+        teacheridx = rand(1:length(group_possible_teachers))
+        teacher = group_possible_teachers[teacheridx]
+        push!(teachers, teacher)
+
+        deleteat!(possible_teachers, 
+                  findfirst(t -> t == teacher, possible_teachers))
+        
+        # println("Possible teachers:")
+        # println(map(t -> t.id, possible_teachers))
+        # println()
+        # println("Teachers:")
+        # println(map(t -> t.id, teachers))
+        # println()
+
+
+        # if model.properties.payoff_bias
+
+        #     possible_teacher_payoffs = map(t -> t.prev_net_payoff,
+        #                                    possible_teachers)
+
+        #     push!(
+        #         teachers, 
+        #         sample(possible_teachers, Weights(map(t -> t.net_payoff)))
+        #     )
+        # end
+    end
+
+    return teachers
+end
+
 
 
 """
@@ -320,7 +349,7 @@ frequency of social learning.
 function learn!(agent::LearningAgent, model::ABM)
 
     
-    if rand() < agent.soc_learn_freq
+    if (agent.soc_learn_freq == 1.0) || (rand() < agent.soc_learn_freq)
        # TODO 
 
     end
