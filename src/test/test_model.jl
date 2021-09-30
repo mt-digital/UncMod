@@ -17,10 +17,12 @@ include("../model.jl")
         Behavior2 => BehaviorPayoffStructure(1.0, 0.25, 0.35)
     )
 
-    model = uncertainty_learning_model(nagents = 10; 
+    model = uncertainty_learning_model(nagents = 20; 
                                        nteachers = nteachers,
                                        initlearningstrategies = learningstrategies,
-                                       environment = environment)
+                                       environment = environment,
+                                       R0_1 = 0.5,
+                                       R0_2 = 0.25)
 
     env_beh1 = model.properties[:environment][Behavior1]
     @test env_beh1.high_payoff == 2.0
@@ -32,8 +34,18 @@ include("../model.jl")
     @test env_beh2.low_state_frac == 0.25
     @test env_beh2.reliability == 0.35
 
-    @test nagents(model) == 10
+    @test nagents(model) == 20
     @test all(map(a -> a.learning_strategy.nteachers, allagents(model)) .== 5)
+
+    # # Check that correct number of Group1 agents init'd to Behavior1.
+    @test count(a -> a.behavior == Behavior1, 
+                filter(a -> a.group == Group1, collect(allagents(model)))
+                ) == 5
+    
+    # Check that correct number of Group2 agents init'd to Behavior2.
+    @test count(a -> a.behavior == Behavior2, 
+                filter(a -> a.group == Group2, collect(allagents(model)))
+                ) == 3
 end
 
 
@@ -42,7 +54,7 @@ end
     high_payoff = 2.0
     low_state_frac = 1.0
     paystruct = BehaviorPayoffStructure(high_payoff, low_state_frac, reliability)
-    numpayoffs = 10_000.0
+    numpayoffs = 10_000
     @test sum([generate_payoff(paystruct) for _ in 1:numpayoffs]) == 20_000.0
 
     high_payoff = 4.0

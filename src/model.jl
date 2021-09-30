@@ -104,6 +104,7 @@ end
     # The ledger keeps track of individually-learned payoffs in each 
     # behavior-environment pair.
     ledger::Dict{Behavior, Float64} = Dict(Behavior1 => 0.0, Behavior2 => 0.0)
+    behavior_count::Dict{Behavior, Int64} = Dict(Behavior1 => 0, Behavior2 => 0)
 
     age::Int64 = 0
 end
@@ -140,9 +141,11 @@ function uncertainty_learning_model(;
                                     minority_frac = 0.5, 
                                     environment = Dict(
                                         Behavior1 => 
-                                            BehaviorPayoffStructure(0.5, 2.0, 0.5),
+                                            # BehaviorPayoffStructure(100.0, 0.0, 0.5),
+                                            BehaviorPayoffStructure(550.0, (450.0/550.0), 0.5),
                                         Behavior2 => 
-                                            BehaviorPayoffStructure(0.25, 1.0, 0.25)
+                                            BehaviorPayoffStructure(1000.0, 0.0, 0.5),
+                                            # BehaviorPayoffStructure(55.5, (45.5/55.5), 0.5)
                                     ),
                                     # payoff_learning_bias = false,
                                     model_parameters...)
@@ -169,31 +172,71 @@ function uncertainty_learning_model(;
                    model)
     end
     
+    ngroup1 = round(nagents * minority_frac)
     for ii in 1:nagents
-        if ii < (nagents * minority_frac / 2)
+        if ii <= ngroup1
             add_soclearn_agent!(ii, Group1)
         else
             add_soclearn_agent!(ii, Group2)
         end
     end
 
+    # Deal with group-behavior correlations for Group1/Behavior1 correlation.
+    if haskey(params, :R0_1) 
+
+        n1 = round((params[:R0_1] * ngroup1) + 0.01)  # add extra for rounding up from X.5.
+        g1agents = filter(a -> a.group == Group1, collect(allagents(model)))
+        b1_idxs = sample(1:length(g1agents), Int(n1), replace=false)
+
+        for (agent_idx, agent) in enumerate(g1agents)
+            if agent_idx ∈ b1_idxs
+                model[agent.id].behavior = Behavior1
+            else
+                model[agent.id].behavior = Behavior2
+            end
+        end
+    end
+
+    # Deal with group-behavior correlations for Group2/Behavior2 correlation.
+    if haskey(params, :R0_2)
+
+        n2 = round(
+            (params[:R0_2] * (nagents - ngroup1)) + 0.01  # add extra for rounding up from X.5.
+        )
+        g2agents = filter(a -> a.group == Group2, collect(allagents(model)))
+        b2_idxs = sample(1:length(g2agents), Int(n2), replace=false)
+
+        for (agent_idx, agent) in enumerate(g2agents)
+            if agent_idx ∈ b2_idxs
+                model[agent.id].behavior = Behavior2
+            else
+                model[agent.id].behavior = Behavior1
+            end
+        end
+    end
+
     return model
 end
+
 
 function learn_behavior(focal_agent::LearningAgent, 
                         teachers = nothing)
 
     if isnothing(teachers)
         # Asocial learning.
-        behavior = findmax(focal_agent.ledger)[2]
+        if !(focal_agent.ledger[Behavior1] + focal_agent.ledger[Behavior2] == 0.0)
+            behavior = findmax(focal_agent.ledger)[2]
+        else 
+            behavior = focal_agent.behavior
+        end
     else
         # Social learning via conformist transmission, i.e., adopt most common behavior.
         n_using1 = count(behavior -> behavior == Behavior1,
                          map(teacher -> teacher.behavior, teachers))
 
-        if n_using1 > length(teachers) / 2.0
+        if n_using1 > (length(teachers) / 2.0)
             behavior = Behavior1
-        elseif n_using1 < length(teachers) / 2.0
+        elseif n_using1 < (length(teachers) / 2.0)
             behavior = Behavior2 
         else 
             behavior = rand([Behavior1, Behavior2])
@@ -204,7 +247,7 @@ function learn_behavior(focal_agent::LearningAgent,
     # random with probability equal to agent's exploration value in 
     # learning strategy.
     if rand() < focal_agent.learning_strategy.exploration
-        behavior = rand([Behavior1, Behavior2])
+        behavior = sample([Behavior1, Behavior2], 1)[1]
     end
 
     return behavior
@@ -238,14 +281,14 @@ end
 function agent_step!(focal_agent::LearningAgent, 
                      model::ABM)
 
-    behavior = select_behavior!(focal_agent)
+    behavior = select_behavior!(focal_agent, model)
 
     # focal_agent.step_payoff = generate_payoff(
-    step_payoff = generate_payoff(
-        model.properties.payoff_structures[behavior]
+    focal_agent.step_payoff = generate_payoff(
+        model.properties[:environment][behavior]
     )
 
-    focal_agent.net_payoff += step_payoff
+    # focal_agent.net_payoff += step_payoff
 end
 
 
@@ -291,24 +334,6 @@ function select_teachers(focal_agent::LearningAgent, model::ABM)
         deleteat!(possible_teachers, 
                   findfirst(t -> t == teacher, possible_teachers))
         
-        # println("Possible teachers:")
-        # println(map(t -> t.id, possible_teachers))
-        # println()
-        # println("Teachers:")
-        # println(map(t -> t.id, teachers))
-        # println()
-
-
-        # if model.properties.payoff_bias
-
-        #     possible_teacher_payoffs = map(t -> t.prev_net_payoff,
-        #                                    possible_teachers)
-
-        #     push!(
-        #         teachers, 
-        #         sample(possible_teachers, Weights(map(t -> t.net_payoff)))
-        #     )
-        # end
     end
 
     return teachers
@@ -323,76 +348,74 @@ function model_step!(model)
     # accumulate payoffs to each agent. Need to wait until all agents have
     # calculated step-specific payoffs to add them to net payoff for purposes
     # of social learning teacher selection at each step.
-    for a in allagents(model)
-        
-        # Agents learn individually or socially depending on strategy and payoffs.
-        learn!(a, model)
-
+    for agent in allagents(model)
+        # println(model[agent_idx].step_payoff)
         # Accumulate, record, and reset step payoff values.
-        a.payoffs += a.step_payoff
-        a.prev_step_payoff = a.step_payoff
-        a.step_payoff = 0.0
+        agent.prev_net_payoff = agent.net_payoff
+        agent.net_payoff += agent.step_payoff
+        agent.behavior_count[agent.behavior] += 1
+        agent.ledger[agent.behavior] += (
+            agent.ledger[agent.behavior] + 
+            agent.step_payoff) / Float64(agent.behavior_count[agent.behavior])
+        agent.step_payoff = 0.0
+
+    # for agent_idx in 1:nagents(model)
+        # model[agent_idx].prev_net_payoff = model[agent_idx].net_payoff
+        # model[agent_idx].net_payoff += model[agent_idx].step_payoff
+        # model[agent_idx].behavior_count[model[agent_idx].behavior] += 1
+        # model[agent_idx].ledger[model[agent_idx].behavior] += (
+        #     model[agent_idx].ledger[model[agent_idx].behavior] + 
+        #     model[agent_idx].step_payoff) / Float64(model[agent_idx].behavior_count[model[agent_idx].behavior])
+        # model[agent_idx].step_payoff = 0.0
+        # print(model[agent_idx].ledger)
     end
 
     # If the model has gone steps_per_round time steps since the last model
     # update, evolve the three social learning traits.
-    if model.step_counter % model.steps_per_round == 0
-        evolve!(model)
-    end
+    # if model.step_counter % model.steps_per_round == 0
+    #     evolve!(model)
+    # end
 end
 
 
-"""
-Agents learn individually or socially randomly, weighted by their individual
-frequency of social learning. 
-"""
-function learn!(agent::LearningAgent, model::ABM)
+# """
+# Agents in the model 'evolve', which means they (1) produce offspring asexually 
+# with frequency proportional to relative payoffs---offspring inherit parent's
+# learning strategy with mutation; (2) die off.
+# """
+# function evolve!(model::ABM)
 
-    
-    if (agent.soc_learn_freq == 1.0) || (rand() < agent.soc_learn_freq)
-       # TODO 
+#     all_prev_agents = deepcopy(allagents(model))
 
-    end
-end
+#     all_net_payoffs = map(a -> a.net_payoff, prev_agents)
+
+#     N = nagents(model)
+#     ids_to_reproduce = sample(1:N, all_net_payoffs, N)
+
+#     for (idx, child) in enumerate(allagents(model))
+
+#         parent = all_prev_agents[idx]
+
+#         child.learning_strategy = parent.learning_strategy
+#         if rand() < mutate_freq  
+#             # Randomly select one of the three learning strategy components
+#             # to perturb 
+#         end
+
+#         child_agent.group = parent.group
+#         child_agent.net_payoff = 0
+#     end
+# end
 
 
-"""
-Agents in the model 'evolve', which means they (1) produce offspring asexually 
-with frequency proportional to relative payoffs---offspring inherit parent's
-learning strategy with mutation; (2) die off.
-"""
-function evolve!(model::ABM)
-
-    all_prev_agents = deepcopy(allagents(model))
-
-    all_net_payoffs = map(a -> a.net_payoff, prev_agents)
-
-    N = nagents(model)
-    ids_to_reproduce = sample(1:N, all_net_payoffs, N)
-
-    for (idx, child) in enumerate(allagents(model))
-
-        parent = all_prev_agents[idx]
-
-        child.learning_strategy = parent.learning_strategy
-        if rand() < mutate_freq  
-            # Randomly select one of the three learning strategy components
-            # to perturb 
-        end
-
-        child_agent.group = parent.group
-        child_agent.net_payoff = 0
-    end
-end
-
-"""
-Perhaps terminate when value p has stabilized for all agents? For now, though,
-we can just run for a certain number of steps and I'll comment this out.
-"""
-function terminate(model, s)
-    if model.properties.n_rounds_elapsed == model.n_rounds_max
-        return true
-    else
-        return false
-    end
-end
+# """
+# Perhaps terminate when value p has stabilized for all agents? For now, though,
+# we can just run for a certain number of steps and I'll comment this out.
+# """
+# function terminate(model, s)
+#     if model.properties.n_rounds_elapsed == model.n_rounds_max
+#         return true
+#     else
+#         return false
+#     end
+# end
