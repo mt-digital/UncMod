@@ -141,7 +141,7 @@ end
 """
 """
 function uncertainty_learning_model(; 
-                                    nagents = 100,
+                                    nagents = 100, 
                                     minority_frac = 0.5, 
                                     environment = Dict(
                                         Behavior1 => 
@@ -149,7 +149,7 @@ function uncertainty_learning_model(;
                                         Behavior2 => 
                                             BehaviorPayoffStructure(1.0, 0.5, 0.5),
                                     ),
-                                    mutation_magnitude = 0.05,  # σₘ in paper.
+                                    mutation_magnitude = 0.2,  # σₘ in paper.
                                     learnparams_mutating = [:soclearnfreq],
                                     # payoff_learning_bias = false,
                                     model_parameters...)
@@ -393,7 +393,8 @@ function select_todie(model)
     N = nagents(model)
     select_idxs = sample(1:nagents(model), 
                          Weights(agent_ages), 
-                         model.properties[:ntoreprodie])
+                         model.properties[:ntoreprodie],
+                         replace = false)
 
     return collect(allagents(model))[select_idxs]
 end
@@ -410,7 +411,7 @@ function repro_with_mutations!(model, repro_agent, dead_agent)
 
     # Setting dead agent's fields with relevant repro agent's, no mutation yet.
     dead_agent.parent = repro_agent.uuid
-    for field in [:group, :behavior, :learning_strategy]
+    for field in [:group, :behavior]
         setproperty!(dead_agent, field, getproperty(repro_agent, field))
     end
 
@@ -418,9 +419,17 @@ function repro_with_mutations!(model, repro_agent, dead_agent)
     # than one is being allowed to evolve.
     mutparam = sample(model.properties[:learnparams_mutating])
     mutdistro = model.properties[:mutation_distro]
+    newparamval = getproperty(repro_agent.learning_strategy, mutparam) + rand(mutdistro)
+
+    # All learning parameter values are probabilities, thus limited to [0.0, 1.0].
+    if newparamval > 1.0
+        newparamval = 1.0
+    elseif newparamval < 0.0
+        newparamval = 0.0
+    end
+
     setproperty!(
-        dead_agent.learning_strategy, mutparam, 
-        getproperty(repro_agent.learning_strategy, mutparam) + rand(mutdistro)
+        dead_agent.learning_strategy, mutparam, newparamval
     )
 
 end
