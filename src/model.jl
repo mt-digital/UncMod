@@ -12,6 +12,7 @@ using Distributions
 using DrWatson
 using Parameters
 using StatsBase
+using UUIDs
 
 
 # Agents may be in one of two groups, call them 1 and 2.
@@ -58,10 +59,10 @@ end
 
 
 "Agent social learning strategies have three heritable components"
-@with_kw struct LearningStrategy
+@with_kw mutable struct LearningStrategy
 
     # Frequency of social learning versus asocial learning (trial and error).
-    soclearnfreq::Float64 = rand()
+    soclearnfreq::Float64 = rand() 
     
     # Actually "greediness" value ϵ, adapted for our context. This one can
     # be updated through social learning.
@@ -107,6 +108,9 @@ end
     behavior_count::Dict{Behavior, Int64} = Dict(Behavior1 => 0, Behavior2 => 0)
 
     age::Int64 = 0
+
+    uuid::UUID = uuid4()
+    parent::Union{UUID,Nothing} = nothing
 end
 
 
@@ -141,19 +145,21 @@ function uncertainty_learning_model(;
                                     minority_frac = 0.5, 
                                     environment = Dict(
                                         Behavior1 => 
-                                            # BehaviorPayoffStructure(100.0, 0.0, 0.5),
-                                            BehaviorPayoffStructure(550.0, (450.0/550.0), 0.5),
+                                            BehaviorPayoffStructure(1.0, 0.5, 0.5),
                                         Behavior2 => 
-                                            BehaviorPayoffStructure(1000.0, 0.0, 0.5),
-                                            # BehaviorPayoffStructure(55.5, (45.5/55.5), 0.5)
+                                            BehaviorPayoffStructure(1.0, 0.5, 0.5),
                                     ),
+                                    mutation_magnitude = 0.05,  # σₘ in paper.
+                                    learnparams_mutating = [:soclearnfreq],
                                     # payoff_learning_bias = false,
                                     model_parameters...)
     
     params = merge(
         Dict(model_parameters), 
-        Dict(:minority_frac => minority_frac),
-        Dict(:environment => environment)
+        Dict(:minority_frac => minority_frac, 
+             :environment => environment,
+             :learnparams_mutating => learnparams_mutating,
+             :mutation_distro => Normal(0.0, mutation_magnitude))
     )
     
     # Initialize model. 
@@ -262,8 +268,6 @@ function select_behavior!(focal_agent, model)
     if (focal_soclearnfreq == 1.0) || (rand() < focal_soclearnfreq) 
         # Select teacher based on parochialism and social learning strategy.
         teachers = select_teachers(focal_agent, model)
-        # println("Teachers:")
-        # println(teachers)
         behavior = learn_behavior(focal_agent, teachers)
     else
         # Select behavior based on individual learning with probability ϵ
@@ -344,12 +348,9 @@ end
 """
 """
 function model_step!(model)
-    # On every time step after each agent calculates its payoff, 
-    # accumulate payoffs to each agent. Need to wait until all agents have
-    # calculated step-specific payoffs to add them to net payoff for purposes
-    # of social learning teacher selection at each step.
+
+
     for agent in allagents(model)
-        # println(model[agent_idx].step_payoff)
         # Accumulate, record, and reset step payoff values.
         agent.prev_net_payoff = agent.net_payoff
         agent.net_payoff += agent.step_payoff
@@ -358,64 +359,84 @@ function model_step!(model)
             agent.ledger[agent.behavior] + 
             agent.step_payoff) / Float64(agent.behavior_count[agent.behavior])
         agent.step_payoff = 0.0
-
-    # for agent_idx in 1:nagents(model)
-        # model[agent_idx].prev_net_payoff = model[agent_idx].net_payoff
-        # model[agent_idx].net_payoff += model[agent_idx].step_payoff
-        # model[agent_idx].behavior_count[model[agent_idx].behavior] += 1
-        # model[agent_idx].ledger[model[agent_idx].behavior] += (
-        #     model[agent_idx].ledger[model[agent_idx].behavior] + 
-        #     model[agent_idx].step_payoff) / Float64(model[agent_idx].behavior_count[model[agent_idx].behavior])
-        # model[agent_idx].step_payoff = 0.0
-        # print(model[agent_idx].ledger)
     end
 
     # If the model has gone steps_per_round time steps since the last model
     # update, evolve the three social learning traits.
-    # if model.step_counter % model.steps_per_round == 0
-    #     evolve!(model)
-    # end
+    if model.step_counter % model.steps_per_round == 0
+        foreach(a -> a.age += 1, allagents(model))
+        reproducers = select_reproducers(model)
+        terminals = select_to_die(model)
+
+        evolve!(model, reproducers, terminals)
+
+        for agent in allagents(model)
+            agent.prev_net_payoff = 0.0
+            agent.net_payoff = 0.0
+        end
+    end
+end
+
+function select_reproducers(model::ABM)
+    all_net_payoffs = map(a -> a.net_payoff, allagents(model))
+
+    N = nagents(model)
+    select_idxs = sample(1:nagents(model), Weights(all_net_payoffs), 
+                         model.properties[:ntoreprodie])
+
+    return collect(allagents(model))[select_idxs]
+end
+
+function select_todie(model)
+    agent_ages = map(a -> a.age, allagents(model))
+
+    N = nagents(model)
+    select_idxs = sample(1:nagents(model), 
+                         Weights(agent_ages), 
+                         model.properties[:ntoreprodie])
+
+    return collect(allagents(model))[select_idxs]
 end
 
 
-# """
-# Agents in the model 'evolve', which means they (1) produce offspring asexually 
-# with frequency proportional to relative payoffs---offspring inherit parent's
-# learning strategy with mutation; (2) die off.
-# """
-# function evolve!(model::ABM)
+function repro_with_mutations!(model, repro_agent, dead_agent)
+    
+    # Overwrite dead agent's information either with unique information or
+    # properties of repro_agent as appropriate.
+    dead_agent.uuid = uuid4()
+    dead_agent.age = 0
+    dead_agent.ledger = Dict(Behavior1 => 0.0, Behavior2 => 0.0)
+    dead_agent.behavior_count = Dict(Behavior1 => 0, Behavior2 => 0)
 
-#     all_prev_agents = deepcopy(allagents(model))
+    # Setting dead agent's fields with relevant repro agent's, no mutation yet.
+    dead_agent.parent = repro_agent.uuid
+    for field in [:group, :behavior, :learning_strategy]
+        setproperty!(dead_agent, field, getproperty(repro_agent, field))
+    end
 
-#     all_net_payoffs = map(a -> a.net_payoff, prev_agents)
+    # Mutate one of the learning strategy parameters selected at random if more
+    # than one is being allowed to evolve.
+    mutparam = sample(model.properties[:learnparams_mutating])
+    mutdistro = model.properties[:mutation_distro]
+    setproperty!(
+        dead_agent.learning_strategy, mutparam, 
+        getproperty(repro_agent.learning_strategy, mutparam) + rand(mutdistro)
+    )
 
-#     N = nagents(model)
-#     ids_to_reproduce = sample(1:N, all_net_payoffs, N)
-
-#     for (idx, child) in enumerate(allagents(model))
-
-#         parent = all_prev_agents[idx]
-
-#         child.learning_strategy = parent.learning_strategy
-#         if rand() < mutate_freq  
-#             # Randomly select one of the three learning strategy components
-#             # to perturb 
-#         end
-
-#         child_agent.group = parent.group
-#         child_agent.net_payoff = 0
-#     end
-# end
+end
 
 
-# """
-# Perhaps terminate when value p has stabilized for all agents? For now, though,
-# we can just run for a certain number of steps and I'll comment this out.
-# """
-# function terminate(model, s)
-#     if model.properties.n_rounds_elapsed == model.n_rounds_max
-#         return true
-#     else
-#         return false
-#     end
-# end
+"""
+Agents in the model 'evolve', which means they (1) produce offspring asexually 
+with frequency proportional to relative payoffs---offspring inherit parent's
+learning strategy with mutation; (2) die off.
+"""
+function evolve!(model::ABM)
+
+    reproducers = select_reproducers(model)
+    terminals = select_todie(model)
+
+    for (idx, repro_agent) in enumerate(reproducers)
+        repro_with_mutations!(model, repro_agent, terminals[idx])
+    end
+end
