@@ -19,59 +19,24 @@ using UUIDs
 @enum Group Group1 Group2
 
 
-# Agents may perform one of two behaviors, call them 1 and 2.
-@enum Behavior Behavior1 Behavior2
 
 
-# Each behavior may be in one of two payoff states.
-@enum PayoffState Low High
-
-
-"""
-The BehaviorPayoffStructure is provided by the 'Environment', which is not
-directly represented in this model, but is useful to talk about as the 
-thing that yields payoffs with a specified BehaviorPayoffStructure. 
-The Environment
-"""
-struct BehaviorPayoffStructure
-    high_payoff::Float64
-    low_state_frac::Float64 # cᵢ, which reduces so the Low payoff to cᵢπᵢ. 
-    reliability::Float64 # How likely behavior results in High payoff, ρᵢ.
-end
-
-
-"""
-Generate a payoff that will be distributed to an agent performing the 
-behavior according to 
-"""
-function generate_payoff(payoff_structure::BehaviorPayoffStructure)
-    
-    # With probability equal to "uncertainty" the BehaviorPayoff will be in a
-    # Low state.
-    if rand() < payoff_structure.reliability
-        payoff = payoff_structure.high_payoff
-    else
-        payoff = payoff_structure.high_payoff * payoff_structure.low_state_frac
-    end
-
-    return payoff
-end
 
 
 "Agent social learning strategies have three heritable components"
 @with_kw mutable struct LearningStrategy
 
     # Frequency of social learning versus asocial learning (trial and error).
-    soclearnfreq::Float64 = rand() 
+    soclearnfreq::Float64 = 0.01 
     
     # Actually "greediness" value ϵ, adapted for our context. This one can
     # be updated through social learning.
-    exploration::Float64 = rand()
+    exploration::Float64 = 0.2
     
     # Homophily of 0 indicates teachers chosen randomly; 1 indcates 
     # an in-group member is always chosen. Again, could be evolved or
     # influenced.
-    homophily::Float64 = rand()
+    homophily::Float64 = 0.0
 
     # How many others we learn from could be an important parameter.
     nteachers::Float64 = 10
@@ -88,12 +53,15 @@ end
     id::Int
     group::Group
 
-    # Learned environmental strategy.
-    behavior::Behavior
+    # Behavior represented by int that indexes reliabilities to probabilistically
+    # generate payoff.
+    behavior::Int64
+    reliabilities::Array{Float64}
     
     # Learning strategy components that may be set constant, learned, or
     # evolved; see LearningStrategy struct above for definition.
     learning_strategy::LearningStrategy = LearningStrategy()
+
 
     # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
     # some agents' payoffs to be higher just because they performed a behavior
@@ -103,14 +71,33 @@ end
     net_payoff::Float64 = 0.0
 
     # The ledger keeps track of individually-learned payoffs in each 
-    # behavior-environment pair.
-    ledger::Dict{Behavior, Float64} = Dict(Behavior1 => 0.0, Behavior2 => 0.0)
-    behavior_count::Dict{Behavior, Int64} = Dict(Behavior1 => 0, Behavior2 => 0)
+    # behavior-environment pair. Behaviors are rep'd by Int, which indexes
+    # the ledger to look up previous payoffs and behavior counts.
+    ledger::Array{Float64}
+    behavior_count::Array{Int64}
 
     age::Int64 = 0
 
     uuid::UUID = uuid4()
-    parent::Union{UUID,Nothing} = nothing
+    parent::Union{UUID, Nothing} = nothing
+end
+
+
+"""
+Generate a payoff that will be distributed to an agent performing the 
+behavior with prob proportional to reliability for the chosen payoff.
+"""
+function generate_payoff!(focal_agent::LearningAgent)  #behavior_idx::Int64, reliabilities::Array{Float64})
+
+    if rand() < focal_agent.reliabilities[focal_agent.behavior]
+        payoff = 1.0
+    else
+        payoff = 0.0
+    end
+
+    focal_agent.step_payoff = payoff
+
+    return payoff
 end
 
 
@@ -137,29 +124,52 @@ function init_learning_strategy(group, model)
     return learning_strategy
 end
 
+# Convert the desired reliability mean and variance to Beta dist parameters.
+function μσ²_to_αβ(μ, σ²)
+
+    α::Float64 = (μ^2) * (((1 - μ) / σ²) - (1/μ))
+    β::Float64 = α * ((1 / μ) - 1)
+
+    return α, β
+end
+
+function draw_reliabilities(base_reliabilities, reliability_variance)
+
+    # Transform base reliabilities and reliability variance into Beta dist params.
+    params = map(base_rel -> μσ²_to_αβ(base_rel, reliability_variance),
+                        base_reliabilities)
+
+    return map(
+        ((α, β),) -> rand(Beta(α, β)),
+        params
+    )
+end
 
 """
 """
 function uncertainty_learning_model(; 
                                     nagents = 100, 
                                     minority_frac = 0.5, 
-                                    environment = Dict(
-                                        Behavior1 => 
-                                            BehaviorPayoffStructure(1.0, 0.5, 0.5),
-                                        Behavior2 => 
-                                            BehaviorPayoffStructure(1.0, 0.5, 0.5),
-                                    ),
-                                    mutation_magnitude = 0.2,  # σₘ in paper.
+                                    mutation_magnitude = 0.1,  # σₘ in paper.
+                                    # learnparams_mutating = [:homophily, :exploration, :soclearnfreq],
                                     learnparams_mutating = [:soclearnfreq],
+                                    base_reliabilities = [0.5, 0.5],
+                                    reliability_variance = 0.1,
+                                    steps_per_round = 10,
+                                    ntoreprodie = 10,
                                     # payoff_learning_bias = false,
                                     model_parameters...)
     
+    nbehaviors = length(base_reliabilities)
+
+    tick = 1
+
     params = merge(
         Dict(model_parameters), 
-        Dict(:minority_frac => minority_frac, 
-             :environment => environment,
-             :learnparams_mutating => learnparams_mutating,
-             :mutation_distro => Normal(0.0, mutation_magnitude))
+        
+        Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
+
+        @dict steps_per_round ntoreprodie tick learnparams_mutating base_reliabilities reliability_variance minority_frac nbehaviors
     )
     
     # Initialize model. 
@@ -172,52 +182,23 @@ function uncertainty_learning_model(;
         add_agent!(LearningAgent(
                        id = idx,
                        group = group, 
-                       behavior = rand(instances(Behavior)),
+                       behavior = sample(1:nbehaviors),
+                       reliabilities = 
+                        draw_reliabilities(base_reliabilities, reliability_variance),
+                       ledger = zeros(Float64, nbehaviors),
+                       behavior_count = zeros(Int64, nbehaviors),
                        learning_strategy = init_learning_strategy(group, model) 
                    ), 
                    model)
     end
     
     ngroup1 = round(nagents * minority_frac)
+
     for ii in 1:nagents
         if ii <= ngroup1
             add_soclearn_agent!(ii, Group1)
         else
             add_soclearn_agent!(ii, Group2)
-        end
-    end
-
-    # Deal with group-behavior correlations for Group1/Behavior1 correlation.
-    if haskey(params, :R0_1) 
-
-        n1 = round((params[:R0_1] * ngroup1) + 0.01)  # add extra for rounding up from X.5.
-        g1agents = filter(a -> a.group == Group1, collect(allagents(model)))
-        b1_idxs = sample(1:length(g1agents), Int(n1), replace=false)
-
-        for (agent_idx, agent) in enumerate(g1agents)
-            if agent_idx ∈ b1_idxs
-                model[agent.id].behavior = Behavior1
-            else
-                model[agent.id].behavior = Behavior2
-            end
-        end
-    end
-
-    # Deal with group-behavior correlations for Group2/Behavior2 correlation.
-    if haskey(params, :R0_2)
-
-        n2 = round(
-            (params[:R0_2] * (nagents - ngroup1)) + 0.01  # add extra for rounding up from X.5.
-        )
-        g2agents = filter(a -> a.group == Group2, collect(allagents(model)))
-        b2_idxs = sample(1:length(g2agents), Int(n2), replace=false)
-
-        for (agent_idx, agent) in enumerate(g2agents)
-            if agent_idx ∈ b2_idxs
-                model[agent.id].behavior = Behavior2
-            else
-                model[agent.id].behavior = Behavior1
-            end
         end
     end
 
@@ -230,30 +211,23 @@ function learn_behavior(focal_agent::LearningAgent,
 
     if isnothing(teachers)
         # Asocial learning.
-        if !(focal_agent.ledger[Behavior1] + focal_agent.ledger[Behavior2] == 0.0)
+        if !(sum(focal_agent.ledger) == 0.0)
             behavior = findmax(focal_agent.ledger)[2]
         else 
             behavior = focal_agent.behavior
         end
     else
         # Social learning via conformist transmission, i.e., adopt most common behavior.
-        n_using1 = count(behavior -> behavior == Behavior1,
-                         map(teacher -> teacher.behavior, teachers))
-
-        if n_using1 > (length(teachers) / 2.0)
-            behavior = Behavior1
-        elseif n_using1 < (length(teachers) / 2.0)
-            behavior = Behavior2 
-        else 
-            behavior = rand([Behavior1, Behavior2])
-        end
+        n_using_behaviors = countmap([t.behavior for t in teachers])
+        # Index of the maximum is the second argument returned from findmax.
+        behavior = findmax(n_using_behaviors)[2]
     end
 
     # Whatever the learning result, override what was learned and select at 
     # random with probability equal to agent's exploration value in 
     # learning strategy.
     if rand() < focal_agent.learning_strategy.exploration
-        behavior = sample([Behavior1, Behavior2], 1)[1]
+        behavior = sample(1:length(focal_agent.reliabilities))
     end
 
     return behavior
@@ -285,14 +259,8 @@ end
 function agent_step!(focal_agent::LearningAgent, 
                      model::ABM)
 
-    behavior = select_behavior!(focal_agent, model)
-
-    # focal_agent.step_payoff = generate_payoff(
-    focal_agent.step_payoff = generate_payoff(
-        model.properties[:environment][behavior]
-    )
-
-    # focal_agent.net_payoff += step_payoff
+    select_behavior!(focal_agent, model)
+    generate_payoff!(focal_agent)
 end
 
 
@@ -331,7 +299,7 @@ function select_teachers(focal_agent::LearningAgent, model::ABM)
             group_possible_teachers = possible_teachers
         end
         
-        teacheridx = rand(1:length(group_possible_teachers))
+        teacheridx = sample(1:length(group_possible_teachers))
         teacher = group_possible_teachers[teacheridx]
         push!(teachers, teacher)
 
@@ -349,7 +317,6 @@ end
 """
 function model_step!(model)
 
-
     for agent in allagents(model)
         # Accumulate, record, and reset step payoff values.
         agent.prev_net_payoff = agent.net_payoff
@@ -363,18 +330,23 @@ function model_step!(model)
 
     # If the model has gone steps_per_round time steps since the last model
     # update, evolve the three social learning traits.
-    if model.step_counter % model.steps_per_round == 0
+    if model.tick % model.steps_per_round == 0
         foreach(a -> a.age += 1, allagents(model))
-        reproducers = select_reproducers(model)
-        terminals = select_to_die(model)
+        # reproducers = select_reproducers(model)
+        # terminals = select_to_die(model)
 
-        evolve!(model, reproducers, terminals)
+        evolve!(model)  #, reproducers, terminals)
 
         for agent in allagents(model)
             agent.prev_net_payoff = 0.0
             agent.net_payoff = 0.0
+            agent.ledger = zeros(Float64, model.nbehaviors)
+            agent.behavior_count = zeros(Int64, model.nbehaviors)
+            agent.behavior = sample(1:model.nbehaviors)
         end
     end
+
+    model.tick += 1
 end
 
 function select_reproducers(model::ABM)
@@ -382,16 +354,20 @@ function select_reproducers(model::ABM)
 
     N = nagents(model)
     select_idxs = sample(1:nagents(model), Weights(all_net_payoffs), 
-                         model.properties[:ntoreprodie])
+                         model.ntoreprodie)
 
     return collect(allagents(model))[select_idxs]
 end
 
-function select_todie(model)
-    agent_ages = map(a -> a.age, allagents(model))
+function select_to_die(model, reproducers)
+    agents = allagents(model)
 
     N = nagents(model)
-    select_idxs = sample(1:nagents(model), 
+    all_idxs = 1:N
+    repro_ids = map(a -> a.id, reproducers)
+    available_idxs = filter(idx -> !(idx ∈ repro_ids), all_idxs)
+    agent_ages = map(id -> model[id].age, available_idxs)
+    select_idxs = sample(available_idxs, 
                          Weights(agent_ages), 
                          model.properties[:ntoreprodie],
                          replace = false)
@@ -406,8 +382,8 @@ function repro_with_mutations!(model, repro_agent, dead_agent)
     # properties of repro_agent as appropriate.
     dead_agent.uuid = uuid4()
     dead_agent.age = 0
-    dead_agent.ledger = Dict(Behavior1 => 0.0, Behavior2 => 0.0)
-    dead_agent.behavior_count = Dict(Behavior1 => 0, Behavior2 => 0)
+    dead_agent.ledger = zeros(Float64, model.nbehaviors)
+    dead_agent.behavior_count = zeros(Int64, model.nbehaviors)
 
     # Setting dead agent's fields with relevant repro agent's, no mutation yet.
     dead_agent.parent = repro_agent.uuid
@@ -428,6 +404,7 @@ function repro_with_mutations!(model, repro_agent, dead_agent)
         newparamval = 0.0
     end
 
+    # dead_agent.learning_strategy = repro_agent.learning_strategy
     setproperty!(
         dead_agent.learning_strategy, mutparam, newparamval
     )
@@ -443,7 +420,7 @@ learning strategy with mutation; (2) die off.
 function evolve!(model::ABM)
 
     reproducers = select_reproducers(model)
-    terminals = select_todie(model)
+    terminals = select_to_die(model, reproducers)
 
     for (idx, repro_agent) in enumerate(reproducers)
         repro_with_mutations!(model, repro_agent, terminals[idx])
