@@ -19,10 +19,6 @@ using UUIDs
 @enum Group Group1 Group2
 
 
-
-
-
-
 "Agent social learning strategies have three heritable components"
 @with_kw mutable struct LearningStrategy
 
@@ -218,9 +214,12 @@ function learn_behavior(focal_agent::LearningAgent,
         end
     else
         # Social learning via conformist transmission, i.e., adopt most common behavior.
-        n_using_behaviors = countmap([t.behavior for t in teachers])
-        # Index of the maximum is the second argument returned from findmax.
-        behavior = findmax(n_using_behaviors)[2]
+        # n_using_behaviors = countmap([t.behavior for t in teachers])
+        # # Index of the maximum is the second argument returned from findmax.
+        # behavior = findmax(n_using_behaviors)[2]
+        
+        # Added 10/12/2021 for push for results before AABA abstract deadline
+        behavior = findmax(map(a -> a.payoffs, teachers))[1].behavior
     end
 
     # Whatever the learning result, override what was learned and select at 
@@ -240,8 +239,7 @@ function select_behavior!(focal_agent, model)
     focal_soclearnfreq = focal_agent.learning_strategy.soclearnfreq    
 
     if (focal_soclearnfreq == 1.0) || (rand() < focal_soclearnfreq) 
-        # Select teacher based on parochialism and social learning strategy.
-        teachers = select_teachers(focal_agent, model)
+        teachers = sample(filter(a -> a ≠ focal_agent, allagents(model)))
         behavior = learn_behavior(focal_agent, teachers)
     else
         # Select behavior based on individual learning with probability ϵ
@@ -274,7 +272,8 @@ function select_teachers(focal_agent::LearningAgent, model::ABM)
     end
 
     teachers = LearningAgent[]
-    possible_teachers = filter(agent -> agent != focal_agent, collect(allagents(model)))
+    possible_teachers = filter(agent -> agent != focal_agent, 
+                               collect(allagents(model)))
 
     nteachers = focal_agent.learning_strategy.nteachers
 
@@ -343,6 +342,7 @@ function model_step!(model)
             agent.ledger = zeros(Float64, model.nbehaviors)
             agent.behavior_count = zeros(Int64, model.nbehaviors)
             agent.behavior = sample(1:model.nbehaviors)
+            agent.reliabilities = draw_reliabilities(model.base_reliabilities, model.reliability_variance)
         end
     end
 
