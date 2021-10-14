@@ -8,9 +8,12 @@ Compose = "a81c6b42-2e10-5240-aca2-a61377ecd94b"
 DeepDiffs = "ab62b9b5-e342-54a8-a765-a90f495de1a6"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 Gadfly = "c91e804a-d5a3-530f-b6f0-dfbca275c004"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
 Pluto = "c3e4b0f8-55cb-11ea-2926-15256bba5781"
 TestSetExtensions = "98d24dd4-01ad-11ea-1b02-c9a08f80db04"
+TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 
 [compat]
 julia = "1.6.2"

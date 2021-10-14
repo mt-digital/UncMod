@@ -15,29 +15,6 @@ using StatsBase
 using UUIDs
 
 
-# Agents may be in one of two groups, call them 1 and 2.
-@enum Group Group1 Group2
-
-
-"Agent social learning strategies have three heritable components"
-@with_kw mutable struct LearningStrategy
-
-    # Frequency of social learning versus asocial learning (trial and error).
-    soclearnfreq::Float64 = 0.01 
-    
-    # Actually "greediness" value ϵ, adapted for our context. This one can
-    # be updated through social learning.
-    exploration::Float64 = 0.2
-    
-    # Homophily of 0 indicates teachers chosen randomly; 1 indcates 
-    # an in-group member is always chosen. Again, could be evolved or
-    # influenced.
-    homophily::Float64 = 0.0
-
-    # How many others we learn from could be an important parameter.
-    nteachers::Float64 = 10
-end
-
 
 
 """
@@ -47,17 +24,15 @@ end
     
     # Constant factors and parameters.
     id::Int
-    group::Group
 
     # Behavior represented by int that indexes reliabilities to probabilistically
     # generate payoff.
     behavior::Int64
     reliabilities::Array{Float64}
-    
-    # Learning strategy components that may be set constant, learned, or
-    # evolved; see LearningStrategy struct above for definition.
-    learning_strategy::LearningStrategy = LearningStrategy()
 
+    # Learning parameters.
+    soclearnfreq::Float64 = 0.0
+    exploration::Float64 = 0.01
 
     # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
     # some agents' payoffs to be higher just because they performed a behavior
@@ -97,28 +72,27 @@ function generate_payoff!(focal_agent::LearningAgent)  #behavior_idx::Int64, rel
 end
 
 
-"""
-Arguments:
-    group: Groups are possibly correlated with behavior
-    model: Contains initial behaviors & identities correlate with environment.
-"""
-function init_learning_strategy(group, model)
+# """
+# Arguments:
+#     model: Contains initial behaviors & identities correlate with environment.
+# """
+# function init_learning_strategy(group, model)
 
-    params = model.properties
+#     params = model.properties
 
-    if haskey(params, :nteachers) 
-        learning_strategy = LearningStrategy(nteachers = model.properties[:nteachers])
+#     if haskey(params, :nteachers) 
+#         learning_strategy = LearningStrategy(nteachers = model.properties[:nteachers])
 
-    elseif haskey(params, :initlearningstrategies)
-        learning_strategy = params[:initlearningstrategies][group]
+#     elseif haskey(params, :initlearningstrategies)
+#         learning_strategy = params[:initlearningstrategies][group]
 
-    else
-        learning_strategy = LearningStrategy()
+#     else
+#         learning_strategy = LearningStrategy()
 
-    end
+#     end
     
-    return learning_strategy
-end
+#     return learning_strategy
+# end
 
 # Convert the desired reliability mean and variance to Beta dist parameters.
 function μσ²_to_αβ(μ, σ²)
@@ -128,6 +102,7 @@ function μσ²_to_αβ(μ, σ²)
 
     return α, β
 end
+
 
 function draw_reliabilities(base_reliabilities, reliability_variance)
 
@@ -148,11 +123,12 @@ function uncertainty_learning_model(;
                                     minority_frac = 0.5, 
                                     mutation_magnitude = 0.1,  # σₘ in paper.
                                     # learnparams_mutating = [:homophily, :exploration, :soclearnfreq],
-                                    learnparams_mutating = [:soclearnfreq],
+                                    # learnparams_mutating = [:soclearnfreq],
                                     base_reliabilities = [0.5, 0.5],
                                     reliability_variance = 0.1,
                                     steps_per_round = 10,
                                     ntoreprodie = 10,
+                                    nteachers = 10,
                                     # payoff_learning_bias = false,
                                     model_parameters...)
     
@@ -165,37 +141,29 @@ function uncertainty_learning_model(;
         
         Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
 
-        @dict steps_per_round ntoreprodie tick learnparams_mutating base_reliabilities reliability_variance minority_frac nbehaviors
+        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance minority_frac nbehaviors nteachers
     )
     
     # Initialize model. 
     model = ABM(LearningAgent, scheduler = Schedulers.fastest;
                 properties = params)
 
-    function add_soclearn_agent!(idx::Int64, group::Group)
+    function add_soclearn_agent!(idx::Int64)
         # For now initialize behaviors randomly. These can be modified after
         # initialization as needed for different experiments.
         add_agent!(LearningAgent(
                        id = idx,
-                       group = group, 
                        behavior = sample(1:nbehaviors),
                        reliabilities = 
                         draw_reliabilities(base_reliabilities, reliability_variance),
                        ledger = zeros(Float64, nbehaviors),
-                       behavior_count = zeros(Int64, nbehaviors),
-                       learning_strategy = init_learning_strategy(group, model) 
+                       behavior_count = zeros(Int64, nbehaviors)
                    ), 
                    model)
     end
     
-    ngroup1 = round(nagents * minority_frac)
-
     for ii in 1:nagents
-        if ii <= ngroup1
-            add_soclearn_agent!(ii, Group1)
-        else
-            add_soclearn_agent!(ii, Group2)
-        end
+        add_soclearn_agent!(ii)
     end
 
     return model
@@ -203,6 +171,7 @@ end
 
 
 function learn_behavior(focal_agent::LearningAgent, 
+                        model::ABM,
                         teachers = nothing)
 
     if isnothing(teachers)
@@ -219,14 +188,15 @@ function learn_behavior(focal_agent::LearningAgent,
         # behavior = findmax(n_using_behaviors)[2]
         
         # Added 10/12/2021 for push for results before AABA abstract deadline
-        behavior = findmax(map(a -> a.payoffs, teachers))[1].behavior
+        weights = Weights(map(a -> a.net_payoff, teachers))
+        behavior = sample(teachers, weights).behavior
     end
 
     # Whatever the learning result, override what was learned and select at 
     # random with probability equal to agent's exploration value in 
     # learning strategy.
-    if rand() < focal_agent.learning_strategy.exploration
-        behavior = sample(1:length(focal_agent.reliabilities))
+    if rand() < focal_agent.exploration
+        behavior = sample(1:model.nbehaviors)
     end
 
     return behavior
@@ -236,14 +206,17 @@ end
 function select_behavior!(focal_agent, model)
     
     # First, determine whether learning is individual or social for this step.
-    focal_soclearnfreq = focal_agent.learning_strategy.soclearnfreq    
+    focal_soclearnfreq = focal_agent.soclearnfreq    
 
     if (focal_soclearnfreq == 1.0) || (rand() < focal_soclearnfreq) 
-        teachers = sample(filter(a -> a ≠ focal_agent, allagents(model)))
-        behavior = learn_behavior(focal_agent, teachers)
+        teachers = sample(
+            filter(a -> a ≠ focal_agent, collect(allagents(model))), 
+            model.nteachers
+        )
+        behavior = learn_behavior(focal_agent, model, teachers)
     else
-        # Select behavior based on individual learning with probability ϵ
-        behavior = learn_behavior(focal_agent)
+        # Select behavior based on individual learning with probability ϵ.
+        behavior = learn_behavior(focal_agent, model)
     end
 
     focal_agent.behavior = behavior
@@ -259,55 +232,6 @@ function agent_step!(focal_agent::LearningAgent,
 
     select_behavior!(focal_agent, model)
     generate_payoff!(focal_agent)
-end
-
-
-function select_teachers(focal_agent::LearningAgent, model::ABM)
-
-    in_group = focal_agent.group
-    if in_group == Group1
-        out_group = Group2
-    else
-        out_group = Group1
-    end
-
-    teachers = LearningAgent[]
-    possible_teachers = filter(agent -> agent != focal_agent, 
-                               collect(allagents(model)))
-
-    nteachers = focal_agent.learning_strategy.nteachers
-
-    for _ in 1:nteachers
-
-        homophily = focal_agent.learning_strategy.homophily
-
-        if (homophily == 1.0) || 
-           (rand() < ((1 + homophily) / 2.0))
-
-            teacher_group = in_group
-        else
-            teacher_group = out_group
-        end
-
-        group_possible_teachers = filter(
-            agent -> (agent.group == teacher_group),
-            possible_teachers
-        )
-
-        if length(group_possible_teachers) == 0
-            group_possible_teachers = possible_teachers
-        end
-        
-        teacheridx = sample(1:length(group_possible_teachers))
-        teacher = group_possible_teachers[teacheridx]
-        push!(teachers, teacher)
-
-        deleteat!(possible_teachers, 
-                  findfirst(t -> t == teacher, possible_teachers))
-        
-    end
-
-    return teachers
 end
 
 
@@ -353,10 +277,12 @@ function select_reproducers(model::ABM)
     all_net_payoffs = map(a -> a.net_payoff, allagents(model))
 
     N = nagents(model)
-    select_idxs = sample(1:nagents(model), Weights(all_net_payoffs), 
-                         model.ntoreprodie)
+    select_idxs = sample(
+        1:N, Weights(all_net_payoffs), model.ntoreprodie; replace=false
+    )
 
-    return collect(allagents(model))[select_idxs]
+    ret = collect(allagents(model))[select_idxs]
+    return ret
 end
 
 function select_to_die(model, reproducers)
@@ -372,7 +298,7 @@ function select_to_die(model, reproducers)
                          model.properties[:ntoreprodie],
                          replace = false)
 
-    return collect(allagents(model))[select_idxs]
+    return filter(a -> a.id ∈ select_idxs, collect(allagents(model)))
 end
 
 
@@ -387,15 +313,17 @@ function repro_with_mutations!(model, repro_agent, dead_agent)
 
     # Setting dead agent's fields with relevant repro agent's, no mutation yet.
     dead_agent.parent = repro_agent.uuid
-    for field in [:group, :behavior]
+    dead_agent.behavior = repro_agent.behavior
+    for field in [:behavior]
         setproperty!(dead_agent, field, getproperty(repro_agent, field))
     end
 
     # Mutate one of the learning strategy parameters selected at random if more
     # than one is being allowed to evolve.
-    mutparam = sample(model.properties[:learnparams_mutating])
-    mutdistro = model.properties[:mutation_distro]
-    newparamval = getproperty(repro_agent.learning_strategy, mutparam) + rand(mutdistro)
+    # mutparam = sample(model.properties[:learnparams_mutating])
+    mutparam = :soclearnfreq  # For now set only param that mutates; see above.
+    mutdistro = model.mutation_distro
+    newparamval = getproperty(repro_agent, mutparam) + rand(mutdistro)
 
     # All learning parameter values are probabilities, thus limited to [0.0, 1.0].
     if newparamval > 1.0
@@ -406,7 +334,7 @@ function repro_with_mutations!(model, repro_agent, dead_agent)
 
     # dead_agent.learning_strategy = repro_agent.learning_strategy
     setproperty!(
-        dead_agent.learning_strategy, mutparam, newparamval
+        dead_agent, mutparam, newparamval
     )
 
 end
