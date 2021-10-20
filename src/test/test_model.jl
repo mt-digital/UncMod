@@ -15,6 +15,7 @@ include("../model.jl")
         model = uncertainty_learning_model(; 
             n_agents=10, base_reliabilities=base_rels, reliability_variance=rel_var
         ) 
+
         @test all(
             map(agent -> all(
                 map(((idx, rel),) -> isapprox(rel, base_rels[idx]; 
@@ -23,13 +24,15 @@ include("../model.jl")
                 allagents(model)
             )
         )
+
         @test all(agent -> length(agent.reliabilities) == 2, allagents(model))
 
         base_rels = [0.4, 0.4, 0.8]
-        rel_var = 1e-4
+        rel_var = 1e-6
         model = uncertainty_learning_model(; 
             n_agents=10, base_reliabilities=base_rels, reliability_variance=rel_var
         ) 
+
         @test all(
             map(agent -> all(
                 map(((idx, rel),) -> isapprox(rel, base_rels[idx]; 
@@ -38,6 +41,7 @@ include("../model.jl")
                 allagents(model)
             )
         )
+
         @test all(agent -> length(agent.reliabilities) == 3, allagents(model))
 
     end
@@ -86,7 +90,8 @@ end
 
 @testset "Reproduction and die-off should work as expected for special cases" begin
 
-    model = uncertainty_learning_model(; nagents = 10, ntoreprodie = 5, )
+    model = uncertainty_learning_model(; nagents = 10, ntoreprodie = 5, 
+                                         init_soclearnfreq = 0.5)
 
     earners_payoff = 1000.0
     foreach(ii -> model[ii].net_payoff = earners_payoff, 1:5)
