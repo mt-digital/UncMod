@@ -12,6 +12,7 @@ JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
 Pluto = "c3e4b0f8-55cb-11ea-2926-15256bba5781"
+Profile = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
 TestSetExtensions = "98d24dd4-01ad-11ea-1b02-c9a08f80db04"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 

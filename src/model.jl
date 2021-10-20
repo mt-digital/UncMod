@@ -15,8 +15,6 @@ using StatsBase
 using UUIDs
 
 
-
-
 """
 
 """
@@ -82,7 +80,7 @@ function uncertainty_learning_model(;
         
         Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
 
-        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers  # minority_frac
+        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers regen_reliabilities  # minority_frac
     )
     
     # Initialize model. 
@@ -238,13 +236,18 @@ function model_step!(model)
         prevledg = agent.ledger[agent.behavior]
         agent.ledger[agent.behavior] += 
             prevledg + (
-                (agent.step_payoff - prefledg) / 
+                (agent.step_payoff - prevledg) / 
                 Float64(agent.behavior_count[agent.behavior])
             )
         agent.behavior_count[agent.behavior] += 1
 
         # Reset payoffs for the next time step.
         agent.step_payoff = 0.0
+
+        if model.regen_reliabilities
+            agent.reliabilities = draw_reliabilities(model.base_reliabilities,
+                                                     model.reliability_variance)
+        end
     end
 
     # If the model has gone steps_per_round time steps since the last model
@@ -287,6 +290,7 @@ function select_to_die(model, reproducers)
     N = nagents(model)
     all_idxs = 1:N
     repro_ids = map(a -> a.id, reproducers)
+    # XXX we are not allowing reproducing agents to possibly die. Problem? XXX
     available_idxs = filter(idx -> !(idx ∈ repro_ids), all_idxs)
     agent_ages = map(id -> model[id].age, available_idxs)
     select_idxs = sample(available_idxs, 
