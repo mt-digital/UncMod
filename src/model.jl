@@ -30,7 +30,7 @@ using UUIDs
 
     # Learning parameters.
     soclearnfreq::Float64
-    τ::Float64 = 0.01  # softmax exploration paramter
+    τ::Float64  # softmax exploration paramter
 
     # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
     # some agents' payoffs to be higher just because they performed a behavior
@@ -67,6 +67,7 @@ function uncertainty_learning_model(;
                                     nteachers = 10,
                                     regen_reliabilities = false,
                                     init_soclearnfreq = 0.0,
+                                    softmax_exploration = 1.0,
                                     # payoff_learning_bias = false,
                                     model_parameters...)
     
@@ -97,7 +98,8 @@ function uncertainty_learning_model(;
                         draw_reliabilities(base_reliabilities, reliability_variance),
                        ledger = zeros(Float64, nbehaviors),
                        behavior_count = zeros(Int64, nbehaviors),
-                       soclearnfreq = init_soclearnfreq
+                       soclearnfreq = init_soclearnfreq,
+                       τ = softmax_exploration  
                    ), 
                    model)
     end
