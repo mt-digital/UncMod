@@ -14,44 +14,11 @@ using Parameters
 using StatsBase
 using UUIDs
 
-
-"""
-
-"""
-@with_kw mutable struct LearningAgent <: AbstractAgent
-    
-    # Constant factors and parameters.
-    id::Int
-
-    # Behavior represented by int that indexes reliabilities to probabilistically
-    # generate payoff.
-    behavior::Int64
-    reliabilities::Array{Float64}
-
-    # Learning parameters.
-    soclearnfreq::Float64
-    τ::Float64  # softmax exploration paramter
-
-    # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
-    # some agents' payoffs to be higher just because they performed a behavior
-    # before another.
-    prev_net_payoff::Float64 = 0.0
-    step_payoff::Float64 = 0.0
-    net_payoff::Float64 = 0.0
-
-    # The ledger keeps track of individually-learned payoffs in each 
-    # behavior-environment pair. Behaviors are rep'd by Int, which indexes
-    # the ledger to look up previous payoffs and behavior counts.
-    ledger::Array{Float64}
-    behavior_count::Array{Int64}
-
-    age::Int64 = 0
-
-    uuid::UUID = uuid4()
-    parent::Union{UUID, Nothing} = nothing
-end
+using JuliaInterpreter
+using Debugger
 
 
+@enum SelectionStrategy ϵGreedy Softmax
 """
 """
 function uncertainty_learning_model(; 
@@ -67,11 +34,21 @@ function uncertainty_learning_model(;
                                     nteachers = 10,
                                     regen_reliabilities = false,
                                     init_soclearnfreq = 0.0,
-                                    softmax_exploration = 1.0,
+                                    selection_strategy = Softmax,
+                                    τ_init = 1.0,
+                                    ϵ_init = 0.1,
                                     # payoff_learning_bias = false,
+                                    high_reliability = nothing,
+                                    low_reliability = nothing,
+                                    nbehaviors = nothing,
                                     model_parameters...)
     
-    nbehaviors = length(base_reliabilities)
+    if isnothing(nbehaviors)
+        nbehaviors = length(base_reliabilities)
+    else
+        base_reliabilities = [low_reliability for _ in 1:nbehaviors]
+        base_reliabilities[1] = high_reliability
+    end
 
     tick = 1
 
@@ -81,7 +58,7 @@ function uncertainty_learning_model(;
         
         Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
 
-        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers regen_reliabilities  # minority_frac
+        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers regen_reliabilities  selection_strategy low_reliability high_reliability# minority_frac
     )
     
     # Initialize model. 
@@ -99,7 +76,9 @@ function uncertainty_learning_model(;
                        ledger = zeros(Float64, nbehaviors),
                        behavior_count = zeros(Int64, nbehaviors),
                        soclearnfreq = init_soclearnfreq,
-                       τ = softmax_exploration  
+                       selection_strategy = selection_strategy,
+                       τ = τ_init,
+                       ϵ = ϵ_init  
                    ), 
                    model)
     end
@@ -112,6 +91,48 @@ function uncertainty_learning_model(;
 end
 
 
+"""
+
+"""
+@with_kw mutable struct LearningAgent <: AbstractAgent
+    
+    # Constant factors and parameters.
+    id::Int
+
+    # Behavior represented by int that indexes reliabilities to probabilistically
+    # generate payoff.
+    behavior::Int64
+    reliabilities::Array{Float64}
+
+    # Learning parameters.
+    soclearnfreq::Float64
+    ϵ::Float64  # ϵ-greedy exploration parameter
+    τ::Float64  # softmax exploration paramter
+
+    # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
+    # some agents' payoffs to be higher just because they performed a behavior
+    # before another.
+    prev_net_payoff::Float64 = 0.0
+    step_payoff::Float64 = 0.0
+    net_payoff::Float64 = 0.0
+
+    # The ledger keeps track of individually-learned payoffs in each 
+    # behavior-environment pair. Behaviors are rep'd by Int, which indexes
+    # the ledger to look up previous payoffs and behavior counts.
+    ledger::Array{Float64}
+    behavior_count::Array{Int64}
+
+    age::Int64 = 0
+    selection_strategy::SelectionStrategy
+
+    uuid::UUID = uuid4()
+    parent::Union{UUID, Nothing} = nothing
+end
+
+
+
+
+
 
 """
 Generate a payoff that will be distributed to an agent performing the 
@@ -119,6 +140,7 @@ behavior with prob proportional to reliability for the chosen payoff.
 """
 function generate_payoff!(focal_agent::LearningAgent)  #behavior_idx::Int64, reliabilities::Array{Float64})
 
+    # println(focal_agent.reliabilities)
     if rand() < focal_agent.reliabilities[focal_agent.behavior]
         payoff = 1.0
     else
@@ -161,36 +183,46 @@ function learn_behavior(focal_agent::LearningAgent,
     if isnothing(teachers)
         # Asocial learning.
         if !(sum(focal_agent.ledger) == 0.0)
-            weights = Weights(softmax(focal_agent.ledger, focal_agent.τ))
-            behavior = sample(1:model.nbehaviors, weights)
-            # behavior = findmax(focal_agent.ledger)[2]
+            if model.selection_strategy == Softmax
+                weights = Weights(softmax(focal_agent.ledger, focal_agent.τ))
+                behavior = sample(1:model.nbehaviors, weights)
+            elseif model.selection_strategy == ϵGreedy
+                behavior = findmax(focal_agent.ledger)[2]
+            end
         else 
             behavior = focal_agent.behavior
         end
     else
-        
-        weights = Weights(
-            softmax(map(a -> a.net_payoff, teachers), 
-                    focal_agent.τ)
-        )
+        if model.selection_strategy == Softmax
+            weights = Weights(
+                softmax(map(a -> a.net_payoff, teachers), 
+                        focal_agent.τ)
+            )
+        else
+            weights = Weights(map(a -> a.net_payoff, teachers))
+        end
         behavior = sample(teachers, weights).behavior
     end
 
     # Whatever the learning result, override what was learned and select at 
     # random with probability equal to agent's exploration value in 
     # learning strategy.
-    # if rand() < focal_agent.exploration
-    #     behavior = sample(1:model.nbehaviors)
-    # end
+    if model.selection_strategy == ϵGreedy
+        if rand() < focal_agent.ϵ
+            behavior = sample(1:model.nbehaviors)
+        end
+    end
 
     return behavior
 end
+
 
 function softmax(payoffs::AbstractVector, τ::Float64)
     exponentiated = exp.(payoffs ./ τ)
     denom = sum(exponentiated)
     return exponentiated ./ denom
 end
+
 
 function select_behavior!(focal_agent, model)
     
@@ -203,8 +235,10 @@ function select_behavior!(focal_agent, model)
             model.nteachers
         )
         behavior = learn_behavior(focal_agent, model, teachers)
+        # println("social learning")
     else
         # Select behavior based on individual learning with probability ϵ.
+        # println("individ learning")
         behavior = learn_behavior(focal_agent, model)
     end
 
@@ -229,6 +263,7 @@ end
 """
 function model_step!(model)
 
+    # println(model.step)
     for agent in allagents(model)
         # Accumulate, record, and reset step payoff values.
         agent.prev_net_payoff = agent.net_payoff
@@ -236,25 +271,30 @@ function model_step!(model)
         
         # Update ledger and behavior counts.
         prevledg = agent.ledger[agent.behavior]
-        agent.ledger[agent.behavior] += 
-            prevledg + (
-                (agent.step_payoff - prevledg) / 
-                Float64(agent.behavior_count[agent.behavior])
-            )
         agent.behavior_count[agent.behavior] += 1
+        # println(prevledg)
+        updated_ledger_amt = prevledg + (
+                (agent.step_payoff - prevledg) / 
+                agent.behavior_count[agent.behavior]
+                # Float64(agent.behavior_count[agent.behavior])
+            )
+        # println(updated_ledger_amt)
+        # println(agent.behavior_count)
+        agent.ledger[agent.behavior] = updated_ledger_amt
 
         # Reset payoffs for the next time step.
         agent.step_payoff = 0.0
-
-        if model.regen_reliabilities
-            agent.reliabilities = draw_reliabilities(model.base_reliabilities,
-                                                     model.reliability_variance)
-        end
+        # println(agent.ledger)
+        # if model.regen_reliabilities
+            # agent.reliabilities = draw_reliabilities(model.base_reliabilities,
+            #                                          model.reliability_variance)
+        # end
     end
 
     # If the model has gone steps_per_round time steps since the last model
     # update, evolve the three social learning traits.
     if model.tick % model.steps_per_round == 0
+
         foreach(a -> a.age += 1, allagents(model))
         # reproducers = select_reproducers(model)
         # terminals = select_to_die(model)
@@ -267,12 +307,19 @@ function model_step!(model)
             agent.ledger = zeros(Float64, model.nbehaviors)
             agent.behavior_count = zeros(Int64, model.nbehaviors)
             agent.behavior = sample(1:model.nbehaviors)
-            agent.reliabilities = draw_reliabilities(model.base_reliabilities, model.reliability_variance)
+
+            if model.regen_reliabilities
+                agent.reliabilities = draw_reliabilities(
+                    model.base_reliabilities, model.reliability_variance
+                )
+            end
         end
+
     end
 
     model.tick += 1
 end
+
 
 function select_reproducers(model::ABM)
     all_net_payoffs = map(a -> a.net_payoff, allagents(model))
@@ -285,6 +332,7 @@ function select_reproducers(model::ABM)
     ret = collect(allagents(model))[select_idxs]
     return ret
 end
+
 
 function select_to_die(model, reproducers)
     agents = allagents(model)

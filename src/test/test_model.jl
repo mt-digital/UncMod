@@ -56,7 +56,7 @@ include("../model.jl")
         
         agent.behavior = 1
         payoffs = sum(map(_ -> generate_payoff!(agent), 1:1000))
-        @test isapprox(payoffs, 100.0; rtol=1e-1)
+        @test isapprox(payoffs, 100.0; rtol=2e-1)
 
         agent.behavior = 2
         payoffs = sum(map(_ -> generate_payoff!(agent), 1:1000))
@@ -84,6 +84,16 @@ end
     # Make sure focal agent selects behavior 2.
     select_behavior!(focal_agent, model)
     @test focal_agent.behavior == 2
+
+
+    # Make sure focal agent selects behavior 2 (1-ϵ) of the time under ϵ-greedy
+    chosen_behavior = []
+    model.selection_strategy = ϵGreedy
+    for _ in 1:1000
+        append!(chosen_behavior, select_behavior!(focal_agent, model))
+    end
+
+    @test isapprox(countmap(chosen_behavior)[2], 900; rtol=1e-1)
 
 end
 

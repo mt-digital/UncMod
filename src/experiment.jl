@@ -4,16 +4,6 @@ using DataFrames
 include("model.jl")
 
 
-function prepare_parameters(
-        ntrials, 
-        reliability_variances, nrounds, steps_per_round, whensteps, nbehaviors,
-        mutation_magnitude, regen_reliabilities
-    )
-
-    trial_idx = collect(1:ntrials)
-
-    return @dict reliability_variances steps_per_round nbehaviors mutation_magnitude regen_reliabilities softmax_exploration
-end
 
 function experiment(ntrials = 100; 
                     nagents = 100, reliability_variances = [0.15, 1e-6], 
@@ -27,32 +17,37 @@ function basic_demo_experiment(;
     nagents = 100,
     nsteps = 1000, whensteps = 10, ntrials = 10, steps_per_round = 100,
     mutation_magnitude = 0.1, regen_reliabilities = true, nbehaviors = 10,
-    softmax_exploration = 1.0)
+    τ_init = 1.0, ϵ_init = 0.1, low_payoff = 0.4, high_payoff = 0.6, 
+    selection_strategy = Softmax)
 
     
     mean_soclearn(soclearnfreq) = mean(soclearnfreq)
-    modal_behavior(behaviors) = findmax(countmap(behaviors))
-    adata = adata = [(:behavior, modal_behavior), (:soclearnfreq, mean)]
+    # modal_behavior(behaviors) = findmax(countmap(behaviors))
+    # adata = adata = [(:modal_behavior, modal_behavior), (:soclearnfreq, mean)]
+    countbehaviors(behaviors) = countmap(behaviors)
+    adata = adata = [(:behaviorcounts, countbehaviors), (:soclearnfreq, mean)]
 
     results = DataFrame()
 
-    base_reliabilities = [0.2 for _ in 1:nbehaviors]
-    base_reliabilities[1] = 0.8
+    base_reliabilities = [low_payoff for _ in 1:nbehaviors]
+    base_reliabilities[1] = high_payoff
     
     for rvar in reliability_variances
 
-        for trial_idx in 1:ntrials
+        for trial_idx in 1:ntrials 
 
-            then = now()
+            then = now() 
 
             model = uncertainty_learning_model(; 
-                        nagents = nagents, 
+                        nagents = nagents,  
                         reliability_variance = rvar,
                         base_reliabilities = base_reliabilities,
                         steps_per_round = steps_per_round,
                         mutation_magnitude = mutation_magnitude,
                         regen_reliabilities = regen_reliabilities,
-                        softmax_exploration = softmax_exploration)
+                        selection_strategy = selection_strategy,
+                        τ_init = τ_init,
+                        ϵ_init = ϵ_init)
 
             adf, mdf = run!(model, agent_step!, model_step!, nsteps;
                             adata, when = (model, s) -> s % whensteps == 0)
@@ -73,4 +68,68 @@ function basic_demo_experiment(;
 
     return results
 
+end
+
+function prepare_individual_paramlist(
+        ntrials, 
+        reliability_variances, steps_per_round, whensteps, nbehaviors,
+        mutation_magnitude, regen_reliabilities
+    )
+
+    trial_idx = collect(1:ntrials)
+
+    return dict_list(
+        @dict reliability_variances steps_per_round nbehaviors mutation_magnitude regen_reliabilities softmax_exploration trial_idx
+    )
+end
+
+function individual_learning_pilot(
+        nagents = 100;
+        nbehaviors = [2, 5, 10, 20, 50, 100], 
+        reliability_variance = [1e-6, 1e-3, 1e-1],
+        high_reliability = [0.2, 0.6, 0.9], low_reliability = [0.1, 0.5, 0.8],
+        steps = 20, selection_strategy = ϵGreedy, selection_temperature = 0.05
+    )
+
+    params_list = dict_list(
+        @dict reliability_variance steps nbehaviors high_reliability low_reliability  
+    )
+
+    params_list = filter(
+        params -> params[:high_reliability] > params[:low_reliability],
+        params_list
+    )
+
+    countbehaviors(behaviors) = countmap(behaviors)
+    # noptimal(behaviors) = countmap(behaviors)[1] / nagents
+    # ledgers(ledger) = mean(ledger)
+    # adata = [(:behavior, countbehaviors), (:behavior, noptimal)]
+    # adata = [(:behavior, countbehaviors), (:ledger, ledgers)]
+    adata = [(:behavior, countbehaviors)]
+    # adata = [:behavior]
+    mdata = [:reliability_variance, :high_reliability, :low_reliability, :nbehaviors] 
+
+    if selection_strategy == ϵGreedy
+        indivlearn_models = [
+            uncertainty_learning_model(;
+                nagents = nagents, steps_per_round = steps + 1, 
+                selection_strategy = selection_strategy, 
+                ϵ_init = selection_temperature, params...)
+            for params in params_list
+        ]
+    else
+        indivlearn_models = [
+            uncertainty_learning_model(;
+                nagents = nagents, steps_per_round = steps + 1, 
+                selection_strategy = selection_strategy, 
+                τ_init = selection_temperature, params...)
+            for params in params_list
+        ]
+    end
+    
+    return ensemblerun!(
+        indivlearn_models, agent_step!, model_step!, steps; 
+        adata, mdata, when = ((model, step) -> step == steps)
+    )
+    
 end

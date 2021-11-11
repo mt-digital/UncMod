@@ -62,6 +62,12 @@ git-tree-sha1 = "30ee06de5ff870b45c78f529a6b093b3323256a3"
 uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 version = "1.3.1"
 
+[[CodeTracking]]
+deps = ["InteractiveUtils", "UUIDs"]
+git-tree-sha1 = "9aa8a5ebb6b5bf469a7e0e2b5202cf6f8c291104"
+uuid = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
+version = "1.0.6"
+
 [[CodecZlib]]
 deps = ["TranscodingStreams", "Zlib_jll"]
 git-tree-sha1 = "ded953804d019afa9a3f98981d99b33e3db7b6da"
@@ -150,6 +156,12 @@ version = "1.0.0"
 [[Dates]]
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
+
+[[Debugger]]
+deps = ["CodeTracking", "Crayons", "Highlights", "InteractiveUtils", "JuliaInterpreter", "Markdown", "REPL"]
+git-tree-sha1 = "314642620f95fca224d578ec615b944b5e5ee6db"
+uuid = "31a5f54b-26ea-5ae9-a837-f05ce5417438"
+version = "0.6.8"
 
 [[DeepDiffs]]
 git-tree-sha1 = "9824894295b62a6a4ab6adf1c7bf337b3a9ca34c"
@@ -304,6 +316,12 @@ git-tree-sha1 = "de4a6f9e7c4710ced6838ca906f81905f7385fd6"
 uuid = "a1b4810d-1bce-5fbd-ac56-80944d57a21f"
 version = "0.2.0"
 
+[[Highlights]]
+deps = ["DocStringExtensions", "InteractiveUtils", "REPL"]
+git-tree-sha1 = "f823a2d04fb233d52812c8024a6d46d9581904a4"
+uuid = "eafb193a-b7ab-5a9e-9068-77385905fa72"
+version = "0.4.5"
+
 [[IndirectArrays]]
 git-tree-sha1 = "c2a145a145dc03a7620af1444e0264ef907bd44f"
 uuid = "9b13fd28-a010-5f03-acff-a1bbcff69959"
@@ -379,6 +397,12 @@ deps = ["Dates", "Mmap", "Parsers", "StructTypes", "UUIDs"]
 git-tree-sha1 = "7d58534ffb62cd947950b3aa9b993e63307a6125"
 uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 version = "1.9.2"
+
+[[JuliaInterpreter]]
+deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
+git-tree-sha1 = "e273807f38074f033d94207a201e6e827d8417db"
+uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
+version = "0.8.21"
 
 [[Juno]]
 deps = ["Base64", "Logging", "Media", "Profile"]
