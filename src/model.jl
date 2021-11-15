@@ -6,11 +6,11 @@
 # Date: 2021-09-06
 #
 
-
+using Distributed
 using Agents
 using Distributions
 using DrWatson
-using Parameters
+@everywhere using Parameters
 using StatsBase
 using UUIDs
 
@@ -41,6 +41,7 @@ function uncertainty_learning_model(;
                                     high_reliability = nothing,
                                     low_reliability = nothing,
                                     nbehaviors = nothing,
+                                    trial_idx = nothing,
                                     model_parameters...)
     
     if isnothing(nbehaviors)
@@ -52,13 +53,14 @@ function uncertainty_learning_model(;
 
     tick = 1
 
+    # Build full dictionary of model parameters and mutation distribution.
     params = merge(
 
         Dict(model_parameters), 
         
         Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
 
-        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers regen_reliabilities  selection_strategy low_reliability high_reliability# minority_frac
+        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers regen_reliabilities  selection_strategy low_reliability high_reliability trial_idx# minority_frac
     )
     
     # Initialize model. 
@@ -186,21 +188,23 @@ function learn_behavior(focal_agent::LearningAgent,
             if model.selection_strategy == Softmax
                 weights = Weights(softmax(focal_agent.ledger, focal_agent.τ))
                 behavior = sample(1:model.nbehaviors, weights)
-            elseif model.selection_strategy == ϵGreedy
+             elseif model.selection_strategy == ϵGreedy
                 behavior = findmax(focal_agent.ledger)[2]
             end
         else 
             behavior = focal_agent.behavior
         end
     else
-        if model.selection_strategy == Softmax
-            weights = Weights(
-                softmax(map(a -> a.net_payoff, teachers), 
-                        focal_agent.τ)
-            )
-        else
-            weights = Weights(map(a -> a.net_payoff, teachers))
-        end
+        # XXX PREV VERSION W/ DIFFERENT TEACHER SELECTION FOR EACH INDIV. STRATEGY
+        # if model.selection_strategy == Softmax
+        #     weights = Weights(
+        #         softmax(map(a -> a.net_payoff, teachers), 
+        #                 focal_agent.τ)
+        #     )
+        # else
+        #     weights = Weights(map(a -> a.net_payoff, teachers))
+        # end
+        weights = Weights(map(a -> a.net_payoff, teachers))
         behavior = sample(teachers, weights).behavior
     end
 

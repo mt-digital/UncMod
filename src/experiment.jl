@@ -1,16 +1,15 @@
 using Dates
 using DataFrames
 
-include("model.jl")
+
+using Distributed
+addprocs(3)
+
+@everywhere using DrWatson
+@everywhere quickactivate("..")
+@everywhere include("model.jl")
 
 
-
-function experiment(ntrials = 100; 
-                    nagents = 100, reliability_variances = [0.15, 1e-6], 
-                    niter = 1e5, steps_per_round = 100, nbehaviors = 5,
-                    mutation_magnitude = 0.1, regen_reliabilities = false,
-                    softmax_exploration = 4.0)
-end
 
 function basic_demo_experiment(; 
     reliability_variances = [0.01, 1e-6], 
@@ -25,7 +24,7 @@ function basic_demo_experiment(;
     # modal_behavior(behaviors) = findmax(countmap(behaviors))
     # adata = adata = [(:modal_behavior, modal_behavior), (:soclearnfreq, mean)]
     countbehaviors(behaviors) = countmap(behaviors)
-    adata = adata = [(:behaviorcounts, countbehaviors), (:soclearnfreq, mean)]
+    adata = adata = [(:behavior, countbehaviors), (:soclearnfreq, mean)]
 
     results = DataFrame()
 
@@ -70,18 +69,73 @@ function basic_demo_experiment(;
 
 end
 
-function prepare_individual_paramlist(
-        ntrials, 
-        reliability_variances, steps_per_round, whensteps, nbehaviors,
-        mutation_magnitude, regen_reliabilities
-    )
 
+function experiment(ntrials = 100; 
+                    nagents = 100, 
+                    reliability_variance = [1e-8], 
+                    nbehaviors = [5, 20, 50],
+                    high_reliability = [0.2, 0.9],
+                    low_reliability = [0.1, 0.8],
+                    niter = 10_000, steps_per_round = 100,
+                    mutation_magnitude = 0.05, 
+                    regen_reliabilities = true,
+                    selection_strategy = ϵGreedy,
+                    selection_temperature = 0.05,
+                    whensteps = 1_000)
+    
     trial_idx = collect(1:ntrials)
 
-    return dict_list(
-        @dict reliability_variances steps_per_round nbehaviors mutation_magnitude regen_reliabilities softmax_exploration trial_idx
+    params_list = dict_list(
+        @dict reliability_variance steps_per_round nbehaviors high_reliability low_reliability trial_idx
+    )
+
+    params_list = filter(
+        params -> params[:high_reliability] > params[:low_reliability],
+        params_list
+    )
+
+    countbehaviors(behaviors) = countmap(behaviors)
+
+    adata = [(:behavior, countbehaviors), (:soclearnfreq, mean)]
+    mdata = [:reliability_variance, :trial_idx, :high_reliability, :low_reliability, :nbehaviors, :steps_per_round] 
+
+    if selection_strategy == ϵGreedy
+        models = [
+            uncertainty_learning_model(;
+                nagents = nagents, steps_per_round = steps_per_round + 1, 
+                selection_strategy = selection_strategy, 
+                ϵ_init = selection_temperature, params...)
+            for params in params_list
+        ]
+    else
+        models = [
+            uncertainty_learning_model(;
+                nagents = nagents, steps_per_round = steps_per_round + 1, 
+                selection_strategy = selection_strategy, 
+                τ_init = selection_temperature, params...)
+            for params in params_list
+        ]
+    end
+
+    return ensemblerun!(
+        models, agent_step!, model_step!, niter; 
+        adata, mdata, 
+        # when = (model, step) -> step % whensteps == 0
+        when = (model, step) -> ( (step + 1) % whensteps == 0  ||  step == 0 ),
+        parallel = true
     )
 end
+
+
+function makeresdf(adf, mdf, models)
+    res = mdf[!, [:high_reliability, :low_reliability, :nbehaviors]]
+    res.pct_optimal = map(r -> r.countbehaviors_behavior[1] / length(models[1].agents), eachrow(adf))
+
+    res[!, :steps] .= adf.step[1]
+    
+    return res
+end
+
 
 function individual_learning_pilot(
         nagents = 100;
