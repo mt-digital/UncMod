@@ -13,8 +13,8 @@ include("../../src/experiment.jl")
 # addprocs(3)
 
 adf, mdf, models = 
-    experiment(5; 
-        nbehaviors=[5, 20, 50], niter=20_000, 
+    experiment(100; 
+        nbehaviors=[5, 20, 100], niter=100_000, 
     whensteps = 1000);
 
 adf.pct_optimal = map(

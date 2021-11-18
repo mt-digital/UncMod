@@ -3,7 +3,9 @@ using DataFrames
 
 
 using Distributed
-addprocs(3)
+#addprocs(3)
+num_cores = parse(Int, ENV["SLURM_CPUS_PER_TASK"])
+addprocs(num_cores)
 
 @everywhere using DrWatson
 @everywhere quickactivate("..")
