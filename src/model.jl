@@ -60,7 +60,7 @@ function uncertainty_learning_model(;
         
         Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
 
-        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers regen_reliabilities  selection_strategy low_reliability high_reliability trial_idx# minority_frac
+        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers regen_reliabilities  selection_strategy low_reliability high_reliability trial_idx τ_init ϵ_init # minority_frac
     )
     
     # Initialize model. 

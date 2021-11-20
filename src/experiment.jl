@@ -4,8 +4,8 @@ using DataFrames
 
 using Distributed
 #addprocs(3)
-num_cores = parse(Int, ENV["SLURM_CPUS_PER_TASK"])
-addprocs(num_cores)
+# num_cores = parse(Int, ENV["SLURM_CPUS_PER_TASK"])
+# addprocs(num_cores)
 
 @everywhere using DrWatson
 @everywhere quickactivate("..")
@@ -75,10 +75,10 @@ end
 function experiment(ntrials = 100; 
                     nagents = 100, 
                     reliability_variance = [1e-8], 
-                    nbehaviors = [5, 20, 50],
+                    nbehaviors = [5, 20, 100],
                     high_reliability = [0.2, 0.9],
                     low_reliability = [0.1, 0.8],
-                    niter = 10_000, steps_per_round = 100,
+                    niter = 100_000, steps_per_round = 100,
                     mutation_magnitude = 0.05, 
                     regen_reliabilities = true,
                     selection_strategy = ϵGreedy,
