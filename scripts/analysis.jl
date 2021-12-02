@@ -62,6 +62,7 @@ function plot_final(result;
     xvar = :nbehaviors, yvar = :soclearnfreq, 
     legendkeys = [:low_reliability, :high_reliability],
     xticks = [5, 20, 100],
+    yticks = 0.0:0.2:1.0,
     xlabel = nothing,
     title = nothing,
     legendtitle = nothing
@@ -130,10 +131,15 @@ function plot_final(result;
         Guide.xlabel(xlabel), Guide.ylabel(ylabel),
         Guide.colorkey(title=legendtitle),
         Guide.xticks(ticks=xticks), 
-        Guide.yticks(ticks=0.45:0.05:0.7), 
+        Guide.yticks(ticks=yticks),
+        # Guide.yticks(ticks=0.45:0.05:0.7), 
         # Coord.cartesian(ymin=-0.05),
         Guide.title(title),
-        shape=[Shape.diamond], Theme(point_size=4.5pt)
+        shape=[Shape.diamond], 
+        Theme(
+            point_size=6.5pt, major_label_font_size = 16pt, 
+            minor_label_font_size = 14pt, key_title_font_size=14pt, 
+            line_width = 2pt, key_label_font_size=14pt)
      )
         
 end
