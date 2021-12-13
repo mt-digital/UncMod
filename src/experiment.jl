@@ -75,7 +75,7 @@ end
 function experiment(ntrials = 100; 
                     nagents = 100, 
                     reliability_variance = [1e-8], 
-                    nbehaviors = [5, 20, 50],
+                    nbehaviors = [5, 20, 100],
                     high_reliability = [0.2, 0.9],
                     low_reliability = [0.1, 0.8],
                     niter = 10_000, steps_per_round = 100,
