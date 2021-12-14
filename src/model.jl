@@ -33,8 +33,8 @@ function uncertainty_learning_model(;
                                     nteachers = 10,
                                     regen_reliabilities = false,
                                     init_soclearnfreq = 0.0,
-                                    τ_init = 1.0,
-                                    dτ = 0.99999999,
+                                    τ_init = 0.01,
+                                    dτ = 9.999e-5,
                                     # payoff_learning_bias = false,
                                     high_reliability = nothing,
                                     low_reliability = nothing,
@@ -59,7 +59,7 @@ function uncertainty_learning_model(;
         
         Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
 
-        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers τ_init regen_reliabilities low_reliability high_reliability trial_idx annealing # minority_frac
+        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers τ_init regen_reliabilities low_reliability high_reliability trial_idx annealing# minority_frac
     )
     
     # Initialize model. 
