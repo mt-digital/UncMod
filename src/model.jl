@@ -33,12 +33,14 @@ function uncertainty_learning_model(;
                                     nteachers = 10,
                                     regen_reliabilities = false,
                                     init_soclearnfreq = 0.0,
-                                    τ_init = 0.1,
+                                    τ_init = 1.0,
+                                    dτ = 0.99999999,
                                     # payoff_learning_bias = false,
                                     high_reliability = nothing,
                                     low_reliability = nothing,
                                     nbehaviors = nothing,
                                     trial_idx = nothing,
+                                    annealing = true,
                                     model_parameters...)
     
     if isnothing(nbehaviors)
@@ -57,7 +59,7 @@ function uncertainty_learning_model(;
         
         Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
 
-        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers τ_init regen_reliabilities low_reliability high_reliability trial_idx# minority_frac
+        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers τ_init regen_reliabilities low_reliability high_reliability trial_idx annealing # minority_frac
     )
     
     # Initialize model. 
@@ -75,7 +77,8 @@ function uncertainty_learning_model(;
                        ledger = zeros(Float64, nbehaviors),
                        behavior_count = zeros(Int64, nbehaviors),
                        soclearnfreq = init_soclearnfreq,
-                       τ = τ_init
+                       τ = τ_init,
+                       dτ = dτ
                    ), 
                    model)
     end
@@ -232,9 +235,6 @@ function agent_step!(focal_agent::LearningAgent,
     select_behavior!(focal_agent, model)
     generate_payoff!(focal_agent)
 
-    for agent in allagents(model)
-        agent.τ -= agent.dτ
-    end
 end
 
 
@@ -264,7 +264,10 @@ function model_step!(model)
 
         # Reset payoffs for the next time step.
         agent.step_payoff = 0.0
-        agent.τ = model.τ_init
+        # Softmax annealing.
+        if model.annealing
+            agent.τ -= agent.dτ
+        end
         
         # if model.regen_reliabilities
             # agent.reliabilities = draw_reliabilities(model.base_reliabilities,
@@ -286,6 +289,8 @@ function model_step!(model)
             agent.ledger = zeros(Float64, model.nbehaviors)
             agent.behavior_count = zeros(Int64, model.nbehaviors)
             agent.behavior = sample(1:model.nbehaviors)
+
+            agent.τ = model.τ_init
 
             if model.regen_reliabilities
                 agent.reliabilities = draw_reliabilities(
