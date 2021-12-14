@@ -41,6 +41,10 @@ function uncertainty_learning_model(;
                                     nbehaviors = nothing,
                                     trial_idx = nothing,
                                     annealing = true,
+                                    transledger = true,
+                                    # Says how much to reduce the ledger when 
+                                    # passed between generations.
+                                    transledger_squeeze = 0.5,
                                     model_parameters...)
     
     if isnothing(nbehaviors)
@@ -59,7 +63,7 @@ function uncertainty_learning_model(;
         
         Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
 
-        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers τ_init regen_reliabilities low_reliability high_reliability trial_idx annealing# minority_frac
+        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers τ_init regen_reliabilities low_reliability high_reliability trial_idx annealing transledger transledger_squeeze # minority_frac
     )
     
     # Initialize model. 
@@ -106,9 +110,10 @@ end
 
     # Learning parameters.
     soclearnfreq::Float64 
-    τ::Float64 = 0.1 # softmax temperature
-    # Softmax annealing additive change chosen so after 100 steps τ=1e-6
-    dτ::Float64 = 9.9999e-4 
+    # Softmax temperature
+    τ::Float64 
+    # Softmax annealing subtractive change 
+    dτ::Float64
 
     # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
     # some agents' payoffs to be higher just because they performed a behavior
@@ -310,9 +315,9 @@ function select_reproducers(model::ABM)
 
     N = nagents(model)
     select_idxs = sample(
-        1:N, Weights(all_net_payoffs), model.ntoreprodie; replace=false
+        1:N, Weights(all_net_payoffs), N; replace=true
     )
-
+    
     ret = collect(allagents(model))[select_idxs]
     return ret
 end
@@ -342,15 +347,21 @@ function repro_with_mutations!(model, repro_agent, dead_agent)
     # properties of repro_agent as appropriate.
     dead_agent.uuid = uuid4()
     dead_agent.age = 0
-    dead_agent.ledger = zeros(Float64, model.nbehaviors)
     dead_agent.behavior_count = zeros(Int64, model.nbehaviors)
 
     # Setting dead agent's fields with relevant repro agent's, no mutation yet.
     dead_agent.parent = repro_agent.uuid
-    dead_agent.behavior = repro_agent.behavior
-    for field in [:behavior]
-        setproperty!(dead_agent, field, getproperty(repro_agent, field))
+
+    if model.transledger
+        dead_agent.ledger = 
+            repro_agent.ledger .+ 
+            (model.transledger_squeeze*(0.5 .- repro_agent.ledger))
+    else
+        dead_agent.ledger = zeros(Float64, model.nbehaviors)
     end
+    # for field in [:behavior]
+    #     setproperty!(dead_agent, field, getproperty(repro_agent, field))
+    # end
 
     # Mutate one of the learning strategy parameters selected at random if more
     # than one is being allowed to evolve.
@@ -382,7 +393,7 @@ learning strategy with mutation; (2) die off.
 function evolve!(model::ABM)
 
     reproducers = select_reproducers(model)
-    terminals = select_to_die(model, reproducers)
+    terminals = collect(allagents(model))
 
     for (idx, repro_agent) in enumerate(reproducers)
         repro_with_mutations!(model, repro_agent, terminals[idx])

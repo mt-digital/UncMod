@@ -52,4 +52,4 @@ function run_trials(ntrials = 100;
 
 end
 
-run_trials(100; niter = 100_000, outputfilename = "softmax.jld2")
+# run_trials(100; niter = 100_000, outputfilename = "softmax.jld2")
