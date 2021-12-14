@@ -7,16 +7,13 @@ using Distributed
 try
     num_cores = parse(Int, ENV["SLURM_CPUS_PER_TASK"])
     addprocs(num_cores)
-    @everywhere using DrWatson
-    @everywhere quickactivate("..")
-    @everywhere include("model.jl")
 catch
-    include("model.jl")
 end
 
 
-# @everywhere using DrWatson
-# @everywhere quickactivate("..")
+@everywhere using DrWatson
+@everywhere quickactivate("..")
+@everywhere include("model.jl")
 
 
 
