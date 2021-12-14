@@ -18,7 +18,6 @@ using JuliaInterpreter
 using Debugger
 
 
-@enum SelectionStrategy ϵGreedy Softmax
 """
 """
 function uncertainty_learning_model(; 
@@ -34,9 +33,7 @@ function uncertainty_learning_model(;
                                     nteachers = 10,
                                     regen_reliabilities = false,
                                     init_soclearnfreq = 0.0,
-                                    selection_strategy = Softmax,
-                                    τ_init = 1.0,
-                                    ϵ_init = 0.1,
+                                    τ_init = 0.1,
                                     # payoff_learning_bias = false,
                                     high_reliability = nothing,
                                     low_reliability = nothing,
@@ -60,7 +57,7 @@ function uncertainty_learning_model(;
         
         Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
 
-        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers regen_reliabilities  selection_strategy low_reliability high_reliability trial_idx# minority_frac
+        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers τ_init regen_reliabilities low_reliability high_reliability trial_idx# minority_frac
     )
     
     # Initialize model. 
@@ -78,9 +75,7 @@ function uncertainty_learning_model(;
                        ledger = zeros(Float64, nbehaviors),
                        behavior_count = zeros(Int64, nbehaviors),
                        soclearnfreq = init_soclearnfreq,
-                       selection_strategy = selection_strategy,
-                       τ = τ_init,
-                       ϵ = ϵ_init  
+                       τ = τ_init
                    ), 
                    model)
     end
@@ -107,9 +102,10 @@ end
     reliabilities::Array{Float64}
 
     # Learning parameters.
-    soclearnfreq::Float64
-    ϵ::Float64  # ϵ-greedy exploration parameter
-    τ::Float64  # softmax exploration paramter
+    soclearnfreq::Float64 
+    τ::Float64 = 0.1 # softmax temperature
+    # Softmax annealing additive change chosen so after 100 steps τ=1e-6
+    dτ::Float64 = 9.9999e-4 
 
     # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
     # some agents' payoffs to be higher just because they performed a behavior
@@ -125,7 +121,6 @@ end
     behavior_count::Array{Int64}
 
     age::Int64 = 0
-    selection_strategy::SelectionStrategy
 
     uuid::UUID = uuid4()
     parent::Union{UUID, Nothing} = nothing
@@ -182,39 +177,17 @@ function learn_behavior(focal_agent::LearningAgent,
                         model::ABM,
                         teachers = nothing)
 
+    # If no teachers are provided this Asocial learning
     if isnothing(teachers)
-        # Asocial learning.
         if !(sum(focal_agent.ledger) == 0.0)
-            if model.selection_strategy == Softmax
-                weights = Weights(softmax(focal_agent.ledger, focal_agent.τ))
-                behavior = sample(1:model.nbehaviors, weights)
-             elseif model.selection_strategy == ϵGreedy
-                behavior = findmax(focal_agent.ledger)[2]
-            end
+            weights = Weights(softmax(focal_agent.ledger, focal_agent.τ))
+            behavior = sample(1:model.nbehaviors, weights)
         else 
             behavior = focal_agent.behavior
         end
     else
-        # XXX PREV VERSION W/ DIFFERENT TEACHER SELECTION FOR EACH INDIV. STRATEGY
-        # if model.selection_strategy == Softmax
-        #     weights = Weights(
-        #         softmax(map(a -> a.net_payoff, teachers), 
-        #                 focal_agent.τ)
-        #     )
-        # else
-        #     weights = Weights(map(a -> a.net_payoff, teachers))
-        # end
         weights = Weights(map(a -> a.net_payoff, teachers))
         behavior = sample(teachers, weights).behavior
-    end
-
-    # Whatever the learning result, override what was learned and select at 
-    # random with probability equal to agent's exploration value in 
-    # learning strategy.
-    if model.selection_strategy == ϵGreedy
-        if rand() < focal_agent.ϵ
-            behavior = sample(1:model.nbehaviors)
-        end
     end
 
     return behavior
@@ -222,8 +195,10 @@ end
 
 
 function softmax(payoffs::AbstractVector, τ::Float64)
+
     exponentiated = exp.(payoffs ./ τ)
     denom = sum(exponentiated)
+
     return exponentiated ./ denom
 end
 
@@ -233,16 +208,13 @@ function select_behavior!(focal_agent, model)
     # First, determine whether learning is individual or social for this step.
     focal_soclearnfreq = focal_agent.soclearnfreq    
 
-    if (focal_soclearnfreq == 1.0) || (rand() < focal_soclearnfreq) 
+    if (rand() < focal_soclearnfreq) 
         teachers = sample(
             filter(a -> a ≠ focal_agent, collect(allagents(model))), 
             model.nteachers
         )
         behavior = learn_behavior(focal_agent, model, teachers)
-        # println("social learning")
     else
-        # Select behavior based on individual learning with probability ϵ.
-        # println("individ learning")
         behavior = learn_behavior(focal_agent, model)
     end
 
@@ -259,6 +231,10 @@ function agent_step!(focal_agent::LearningAgent,
 
     select_behavior!(focal_agent, model)
     generate_payoff!(focal_agent)
+
+    for agent in allagents(model)
+        agent.τ -= agent.dτ
+    end
 end
 
 
@@ -288,7 +264,8 @@ function model_step!(model)
 
         # Reset payoffs for the next time step.
         agent.step_payoff = 0.0
-        # println(agent.ledger)
+        agent.τ = model.τ_init
+        
         # if model.regen_reliabilities
             # agent.reliabilities = draw_reliabilities(model.base_reliabilities,
             #                                          model.reliability_variance)
@@ -300,8 +277,6 @@ function model_step!(model)
     if model.tick % model.steps_per_round == 0
 
         foreach(a -> a.age += 1, allagents(model))
-        # reproducers = select_reproducers(model)
-        # terminals = select_to_die(model)
 
         evolve!(model)  #, reproducers, terminals)
 
