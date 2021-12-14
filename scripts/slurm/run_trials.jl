@@ -29,7 +29,7 @@ function run_trials(ntrials = 100;
     result = combine(
         # Groupby experimental variables...
         groupby(resdf, [:step, :nbehaviors, :low_reliability, 
-                :high_reliability, :reliability_variance]),
+                :high_reliability, :reliability_variance, :steps_per_round]),
 
         # ...and aggregate by taking means over outcome variables, convert to table.
         [:mean_soclearnfreq, :pct_optimal] 
@@ -53,4 +53,4 @@ function run_trials(ntrials = 100;
 end
 
 # run_trials(10; niter = 100_000, transledger = false, outputfilename = "softmax_novertical.jld2")
-run_trials(10; niter = 100_000, transledger = true, outputfilename = "vertical.jld2")
+# run_trials(10; niter = 100_000, transledger = true, outputfilename = "vertical.jld2")

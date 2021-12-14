@@ -56,6 +56,9 @@ function uncertainty_learning_model(;
 
     tick = 1
 
+    # XXX not sure why/if this is necessary.
+    # steps_per_round += 1
+
     # Build full dictionary of model parameters and mutation distribution.
     params = merge(
 
