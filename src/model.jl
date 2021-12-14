@@ -284,15 +284,15 @@ function model_step!(model)
     # update, evolve the three social learning traits.
     if model.tick % model.steps_per_round == 0
 
-        foreach(a -> a.age += 1, allagents(model))
+        # foreach(a -> a.age += 1, allagents(model))
 
         evolve!(model)  #, reproducers, terminals)
 
         for agent in allagents(model)
             agent.prev_net_payoff = 0.0
             agent.net_payoff = 0.0
-            agent.ledger = zeros(Float64, model.nbehaviors)
-            agent.behavior_count = zeros(Int64, model.nbehaviors)
+            # agent.ledger = zeros(Float64, model.nbehaviors)
+            # agent.behavior_count = zeros(Int64, model.nbehaviors)
             agent.behavior = sample(1:model.nbehaviors)
 
             agent.τ = model.τ_init
@@ -346,8 +346,8 @@ function repro_with_mutations!(model, repro_agent, dead_agent)
     # Overwrite dead agent's information either with unique information or
     # properties of repro_agent as appropriate.
     dead_agent.uuid = uuid4()
-    dead_agent.age = 0
-    dead_agent.behavior_count = zeros(Int64, model.nbehaviors)
+    # dead_agent.age = 0
+    # dead_agent.behavior_count = zeros(Int64, model.nbehaviors)
 
     # Setting dead agent's fields with relevant repro agent's, no mutation yet.
     dead_agent.parent = repro_agent.uuid
@@ -356,8 +356,10 @@ function repro_with_mutations!(model, repro_agent, dead_agent)
         dead_agent.ledger = 
             repro_agent.ledger .+ 
             (model.transledger_squeeze*(0.5 .- repro_agent.ledger))
+        dead_agent.behavior_count = Integer.(floor.(repro_agent.behavior_count .* 0.5))
     else
         dead_agent.ledger = zeros(Float64, model.nbehaviors)
+        dead_agent.behavior_count = zeros(Int64, model.nbehaviors)
     end
     # for field in [:behavior]
     #     setproperty!(dead_agent, field, getproperty(repro_agent, field))

@@ -29,12 +29,14 @@ function experiment(ntrials = 100;
                     steps_per_round = 100,
                     mutation_magnitude = 0.05, 
                     regen_reliabilities = true,
+                    transledger = true,
+                    transledger_squeeze = 0.5,
                     whensteps = 1_000)
     
     trial_idx = collect(1:ntrials)
 
     params_list = dict_list(
-        @dict reliability_variance steps_per_round nbehaviors high_reliability low_reliability trial_idx
+        @dict reliability_variance steps_per_round nbehaviors high_reliability low_reliability trial_idx transledger transledger_squeeze
     )
 
     # We are not interested in cases where high expected payoff is less than

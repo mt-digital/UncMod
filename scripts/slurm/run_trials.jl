@@ -52,4 +52,5 @@ function run_trials(ntrials = 100;
 
 end
 
-# run_trials(100; niter = 100_000, outputfilename = "softmax.jld2")
+# run_trials(10; niter = 100_000, transledger = false, outputfilename = "softmax_novertical.jld2")
+run_trials(10; niter = 100_000, transledger = true, outputfilename = "vertical.jld2")
