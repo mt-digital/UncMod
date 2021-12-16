@@ -1,9 +1,17 @@
 using DataFrames
 using Gadfly
 using JLD2
-
+# Not used here, but convenient for making notebooks.
+import Cairo, Fontconfig
 
 include("../src/experiment.jl")
+
+
+PROJECT_THEME = Theme(
+    point_size=6.5pt, major_label_font_size = 16pt, 
+    minor_label_font_size = 14pt, key_title_font_size=14pt, 
+    line_width = 2pt, key_label_font_size=14pt
+)
 
 
 function plot_series(
@@ -94,7 +102,7 @@ function payoffs_heatmap(
         :z => NaN
     )
     
-    println(endtimesgrouped)
+    # println(endtimesgrouped)
     for row in eachrow(endtimesgrouped)
         rowselector = (plotdata.π_low  .== row.low_reliability) .& 
                       (plotdata.π_high .== row.high_reliability)
@@ -107,11 +115,20 @@ function payoffs_heatmap(
     yticklabels = Dict(zip(1:9, map(t -> string(t), reverse(0.1:0.1:0.9))))
     
     z = reverse(z, dims=1)
+
+    if zvar == :soclearnfreq
+        zlabel = "Social learning frequency"
+    else
+        zlabel = "% Optimal"
+    end
     
     spy(z, 
         Scale.x_discrete(labels = x -> xticklabels[x]),
+        Guide.xticks(orientation=:vertical),
         Scale.y_discrete(labels = y -> yticklabels[y]),
-        Guide.xlabel("π_low"), Guide.ylabel("π_high"))
+        Guide.xlabel("π_low"), Guide.ylabel("π_high"),
+        Guide.colorkey(title = zlabel),
+        PROJECT_THEME)
 
 end
 
@@ -195,10 +212,7 @@ function plot_final(result;
         # Coord.cartesian(ymin=-0.05),
         Guide.title(title),
         shape=[Shape.diamond], 
-        Theme(
-            point_size=6.5pt, major_label_font_size = 16pt, 
-            minor_label_font_size = 14pt, key_title_font_size=14pt, 
-            line_width = 2pt, key_label_font_size=14pt)
+        PROJECT_THEME
      )
         
 end

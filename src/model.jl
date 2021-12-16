@@ -287,8 +287,6 @@ function model_step!(model)
     # update, evolve the three social learning traits.
     if model.tick % model.steps_per_round == 0
 
-        # foreach(a -> a.age += 1, allagents(model))
-
         evolve!(model)  #, reproducers, terminals)
 
         for agent in allagents(model)
@@ -359,7 +357,7 @@ function repro_with_mutations!(model, repro_agent, dead_agent)
         dead_agent.ledger = 
             repro_agent.ledger .+ 
             (model.transledger_squeeze*(0.5 .- repro_agent.ledger))
-        dead_agent.behavior_count = Integer.(floor.(repro_agent.behavior_count .* 0.5))
+        dead_agent.behavior_count = Integer.(floor.(repro_agent.behavior_count .* model.transledger_squeeze))
     else
         dead_agent.ledger = zeros(Float64, model.nbehaviors)
         dead_agent.behavior_count = zeros(Int64, model.nbehaviors)
