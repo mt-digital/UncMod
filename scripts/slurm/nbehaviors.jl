@@ -2,11 +2,11 @@ include("run_trials.jl")
 
 tic = now()
 
-run_trials(10; 
+run_trials(100; 
            steps_per_round = 100,
-           nbehaviors = collect(5:5:100),
-           niter = 100_000, transledger = false, 
-           outputfilename = "data/firstdraft/nbehaviors_10trials_notrans_100stepsper.jld2")
+           nbehaviors = collect(10:10:100),
+           niter = 100_000, 
+           outputfilename = "data/firstdraft/nbehaviors_10to100behaviors.jld2")
 
 trialstime = Dates.toms(now() - tic) / (60.0 * 1000.0)
 

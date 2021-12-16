@@ -3,8 +3,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=24
 #SBATCH --mem-per-cpu=10G
-#SBATCH --time=1:00:00
-#SBATCH --output=nbehaviors_notrans_100stepsper.out
+#SBATCH --time=24:00:00
+#SBATCH --output=nbehaviors_10to100behaviors.out
 #SBATCH --partition=serc,normal
 
 
