@@ -57,6 +57,65 @@ function plot_series(
      )
 end
 
+function payoffs_heatmap(
+    result;
+    agg_start_step = 80_000,
+    zvar = :soclearnfreq)
+
+    endtimesdf = filter(r -> r.step >= agg_start_step, result)
+
+    endtimesgrouped = sort(combine(
+        groupby(endtimesdf, [:low_reliability, :high_reliability]), 
+
+        [:soclearnfreq, :pct_optimal] =>
+        ((soclearnfreq, pct_optimal) ->
+            (soclearnfreq = mean(soclearnfreq),
+             pct_optimal = mean(pct_optimal))
+        ) =>
+        AsTable),
+
+        [:low_reliability, :high_reliability]
+    )
+    
+    # plotdata = endtimesgrouped
+    # lowrels = vcat(unique(endtimesgrouped.low_reliability), 0.9)
+    # highrels = vcat(0.1, unique(endtimesgrouped.high_reliability))
+
+    lowrels = vcat(unique(endtimesgrouped.low_reliability), 0.9)
+    highrels = vcat(1.0, unique(endtimesgrouped.high_reliability))
+    nrels = length(lowrels)
+
+    lowrels = vcat([repeat([lowrels[ii]], nrels) for ii in 1:nrels]...)
+    highrels = repeat(highrels, nrels)
+
+    plotdata = DataFrame(
+        :π_high => highrels,
+        :π_low => lowrels,
+        :z => NaN
+    )
+    
+    println(endtimesgrouped)
+    for row in eachrow(endtimesgrouped)
+        rowselector = (plotdata.π_low  .== row.low_reliability) .& 
+                      (plotdata.π_high .== row.high_reliability)
+        plotdata[rowselector, :z] .= row[zvar]
+    end
+
+    z = reshape(plotdata[!, :z], nrels, nrels)
+
+    xticklabels = Dict(zip(1:9, map(t -> string(t), 0.1:0.1:0.9)))
+    yticklabels = Dict(zip(1:9, map(t -> string(t), reverse(0.1:0.1:0.9))))
+    
+    z = reverse(z, dims=1)
+    
+    spy(z, 
+        Scale.x_discrete(labels = x -> xticklabels[x]),
+        Scale.y_discrete(labels = y -> yticklabels[y]),
+        Guide.xlabel("π_low"), Guide.ylabel("π_high"))
+
+end
+
+
 function plot_final(result;
     agg_start_step = 80_000,
     xvar = :nbehaviors, yvar = :soclearnfreq, 
