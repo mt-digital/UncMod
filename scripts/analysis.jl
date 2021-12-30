@@ -68,7 +68,8 @@ end
 function payoffs_heatmap(
     result;
     agg_start_step = 80_000,
-    zvar = :soclearnfreq)
+    zvar = :soclearnfreq,
+    colormin = 0.45, colormax = 0.65)
 
     endtimesdf = filter(r -> r.step >= agg_start_step, result)
 
@@ -125,8 +126,11 @@ function payoffs_heatmap(
     spy(z, 
         Scale.x_discrete(labels = x -> xticklabels[x]),
         Guide.xticks(orientation=:vertical),
-        Scale.y_discrete(labels = y -> yticklabels[y]),
         Guide.xlabel("π_low"), Guide.ylabel("π_high"),
+
+        Scale.y_discrete(labels = y -> yticklabels[y]),
+
+        Scale.color_continuous(minvalue=colormin, maxvalue=colormax),
         Guide.colorkey(title = zlabel),
         PROJECT_THEME)
 
