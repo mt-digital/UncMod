@@ -41,10 +41,9 @@ function uncertainty_learning_model(;
                                     nbehaviors = nothing,
                                     trial_idx = nothing,
                                     annealing = true,
-                                    transledger = true,
+                                    vertical_trans = true,
                                     # Says how much to reduce the ledger when 
                                     # passed between generations.
-                                    transledger_squeeze = 0.5,
                                     model_parameters...)
     
     if isnothing(nbehaviors)
@@ -66,7 +65,7 @@ function uncertainty_learning_model(;
         
         Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
 
-        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers τ_init regen_reliabilities low_reliability high_reliability trial_idx annealing transledger transledger_squeeze # minority_frac
+        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers τ_init regen_reliabilities low_reliability high_reliability trial_idx annealing vertical_trans
     )
     
     # Initialize model. 
@@ -113,6 +112,8 @@ end
 
     # Learning parameters.
     soclearnfreq::Float64 
+    vertical_squeeze::Float64 = 0.1
+
     # Softmax temperature
     τ::Float64 
     # Softmax annealing subtractive change 
@@ -287,15 +288,15 @@ function model_step!(model)
     # update, evolve the three social learning traits.
     if model.tick % model.steps_per_round == 0
 
-        evolve!(model)  #, reproducers, terminals)
+        evolve!(model)
 
         for agent in allagents(model)
+
             agent.prev_net_payoff = 0.0
             agent.net_payoff = 0.0
-            # agent.ledger = zeros(Float64, model.nbehaviors)
-            # agent.behavior_count = zeros(Int64, model.nbehaviors)
             agent.behavior = sample(1:model.nbehaviors)
 
+            # Reset softmax temperature to re-start in-round annealing.
             agent.τ = model.τ_init
 
             if model.regen_reliabilities
@@ -342,49 +343,56 @@ function select_to_die(model, reproducers)
 end
 
 
-function repro_with_mutations!(model, repro_agent, dead_agent)
+function repro_with_mutations!(model, parent, child)
     
     # Overwrite dead agent's information either with unique information or
-    # properties of repro_agent as appropriate.
-    dead_agent.uuid = uuid4()
-    # dead_agent.age = 0
-    # dead_agent.behavior_count = zeros(Int64, model.nbehaviors)
+    # properties of parent as appropriate.
+    child.uuid = uuid4()
+    child.age = 0
 
     # Setting dead agent's fields with relevant repro agent's, no mutation yet.
-    dead_agent.parent = repro_agent.uuid
+    child.parent = parent.uuid
 
-    if model.transledger
-        dead_agent.ledger = 
-            repro_agent.ledger .+ 
-            (model.transledger_squeeze*(0.5 .- repro_agent.ledger))
-        dead_agent.behavior_count = Integer.(floor.(repro_agent.behavior_count .* model.transledger_squeeze))
+    if model.vertical_trans
+        transmit_vertical!(parent, child)
     else
-        dead_agent.ledger = zeros(Float64, model.nbehaviors)
-        dead_agent.behavior_count = zeros(Int64, model.nbehaviors)
+        child.ledger = zeros(Float64, model.nbehaviors)
+        child.behavior_count = zeros(Int64, model.nbehaviors)
     end
-    # for field in [:behavior]
-    #     setproperty!(dead_agent, field, getproperty(repro_agent, field))
-    # end
+    
+    # Social learning frequency and vertical squeeze amount are both inherited
+    # with mutation.
+    for mutparam in [:soclearnfreq, :vertical_squeeze]
+        mutdistro = model.mutation_distro
+        newparamval = getproperty(parent, mutparam) + rand(mutdistro)
 
-    # Mutate one of the learning strategy parameters selected at random if more
-    # than one is being allowed to evolve.
-    # mutparam = sample(model.properties[:learnparams_mutating])
-    mutparam = :soclearnfreq  # For now set only param that mutates; see above.
-    mutdistro = model.mutation_distro
-    newparamval = getproperty(repro_agent, mutparam) + rand(mutdistro)
-
-    # All learning parameter values are probabilities, thus limited to [0.0, 1.0].
-    if newparamval > 1.0
-        newparamval = 1.0
-    elseif newparamval < 0.0
-        newparamval = 0.0
+        # Learning parameters are limited to [0.0, 1.0].
+        if newparamval > 1.0
+            newparamval = 1.0
+        elseif newparamval < 0.0
+            newparamval = 0.0
+        end
+        
+        # Set child agent to have mutated param value.
+        setproperty!(
+            child, mutparam, newparamval
+        )
     end
+end
 
-    # dead_agent.learning_strategy = repro_agent.learning_strategy
-    setproperty!(
-        dead_agent, mutparam, newparamval
-    )
 
+function transmit_vertical!(parent, child)
+
+    parent_mean = mean.(parent.ledger)
+
+    child.ledger = 
+        parent_mean + 
+        (parent.vertical_squeeze*(parent_mean .- parent.ledger))
+
+    child.behavior_count = 
+        Integer.(
+            floor.(parent.behavior_count .* parent.vertical_squeeze)
+        )
 end
 
 

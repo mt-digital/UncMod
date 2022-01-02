@@ -29,16 +29,14 @@ function experiment(ntrials = 100;
                     steps_per_round = 100,
                     mutation_magnitude = 0.05, 
                     regen_reliabilities = true,
-                    transledger = true,
-                    transledger_squeeze = 0.5,
-                    whensteps = 1_000)
+                    vertical = true,
+                    whensteps = 1_000,
+                    env_uncert = 0.0)
     
     trial_idx = collect(1:ntrials)
 
-    # steps_per_round .+= 1  # Hack XXX not sure why I even need this
-
     params_list = dict_list(
-        @dict reliability_variance steps_per_round nbehaviors high_reliability low_reliability trial_idx transledger transledger_squeeze
+        @dict reliability_variance steps_per_round nbehaviors high_reliability low_reliability trial_idx vertical
     )
 
     # We are not interested in cases where high expected payoff is less than
@@ -57,7 +55,6 @@ function experiment(ntrials = 100;
     models = [
         uncertainty_learning_model(;
             nagents = nagents, 
-            # steps_per_round = steps_per_round + 1, 
             params...)
 
         for params in params_list
