@@ -2,7 +2,7 @@ using Distributed
 
 using DrWatson
 quickactivate("..")
-#
+
 # Set up DrWatson to include vectors in autogen save names.
 da = DrWatson.default_allowed(Any)
 DrWatson.default_allowed(c) = (da..., Vector)
@@ -12,7 +12,7 @@ using ArgParse
 using Comonicon
 using JLD2
 
-include("../../src/experiment.jl")
+include("../src/experiment.jl")
 
 
 s = ArgParseSettings()
@@ -100,6 +100,7 @@ function run_trials(ntrials = 100;
                     outputfilename = "trials_output.jld2", 
                     experiment_kwargs...)
 
+    println(experiment_kwargs)
     adf, mdf, models = experiment(ntrials; experiment_kwargs...)
 
     adf.pct_optimal = map(
@@ -113,26 +114,29 @@ function run_trials(ntrials = 100;
                       mdf, 
                       on = [:ensemble, :step])
 
+    println(resdf)
     result = combine(
         # Groupby experimental variables...
-        groupby(resdf, [:step, :nbehaviors, :low_reliability, 
-                :high_reliability, :reliability_variance, :steps_per_round]),
+        groupby(resdf, [:step, :nbehaviors, :low_payoff, 
+                :high_payoff, :reliability_variance, :steps_per_round]),
 
         # ...and aggregate by taking means over outcome variables, convert to table.
-        [:mean_soclearnfreq, :pct_optimal] 
+        
+        [:mean_soclearnfreq, :mean_vertical_squeeze, :pct_optimal] 
             =>
                 (
-                    (soclearnfreq, pct_optimal) -> 
+                    (soclearnfreq, vertical_squeeze, pct_optimal) -> 
                         (soclearnfreq = mean(soclearnfreq),
+                         vertical_squeeze = mean(vertical_squeeze),
                          pct_optimal = mean(pct_optimal))
                 ) 
             =>
                 AsTable
     )
 
-    result.baserels_nbehs = 
-        map(r -> string((r.high_reliability, r.low_reliability, r.nbehaviors)), 
-            eachrow(result))
+    # result.baserels_nbehs = 
+    #     map(r -> string((r.high_payoff, r.low_payoff, r.nbehaviors)), 
+    #         eachrow(result))
      
 
     @save outputfilename result
@@ -145,27 +149,32 @@ function main()
     for (arg, val) in parsed_args
         println("    $arg => $val")
     end
-
+    
     # Depending on the experiment, ignore certain name keys.
-    experiment = parsed_args["experiment"]
-    rmkeys = ["experiment"]
+    # experiment = parsed_args["experiment"]
+    # rmkeys = ["experiment"]
+    experiment = pop!(parsed_args, "experiment")
+    datadirname = pop!(parsed_args, "datadirname") 
+
+    # Make a copy of parsed args for use in naming output.
+    nameargs = copy(parsed_args)
+
+    rmkeys = []
     if experiment == "expected-payoff"
         rmkeys = [rmkeys..., "low_payoff", "high_payoff"]
     end
 
     for rmkey in rmkeys
-        delete!(parsed_args, rmkey)
+        delete!(nameargs, rmkey)
     end
 
     outputfilename = savename(experiment, parsed_args, "jld2")
-
-    pa = parsed_args
-    ntrials = pop!(pa, "ntrials")
-    datadirname = pop!(pa, "datadirname") 
-
-    pa_symbkeys = Dict(Symbol(key) => value for (key, value) in pa)
-
     outputfilename = replace(datadir(datadirname, outputfilename), " " => "")
+
+    ntrials = pop!(parsed_args, "ntrials")
+
+    pa_symbkeys = Dict(Symbol(key) => value for (key, value) in parsed_args)
+
     run_trials(ntrials; 
                outputfilename = outputfilename, 
                pa_symbkeys...)

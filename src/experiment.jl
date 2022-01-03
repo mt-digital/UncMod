@@ -23,8 +23,8 @@ function experiment(ntrials = 100;
                     nagents = 100, 
                     reliability_variance = [1e-8], 
                     nbehaviors = [5, 20, 100],
-                    high_reliability = [0.2, 0.9],  # π_high in the paper
-                    low_reliability = [0.1, 0.8],   # π_low in the paper
+                    high_payoff = [0.2, 0.9],  # π_high in the paper
+                    low_payoff = [0.1, 0.8],   # π_low in the paper
                     niter = 10_000, 
                     steps_per_round = 100,
                     mutation_magnitude = 0.05, 
@@ -36,21 +36,21 @@ function experiment(ntrials = 100;
     trial_idx = collect(1:ntrials)
 
     params_list = dict_list(
-        @dict reliability_variance steps_per_round nbehaviors high_reliability low_reliability trial_idx vertical
+        @dict reliability_variance steps_per_round nbehaviors high_payoff low_payoff trial_idx vertical
     )
 
     # We are not interested in cases where high expected payoff is less than
     # or equal to the lower expected payoff, only cases where high expected
     # payoff is greater than low expected payoff.
     params_list = filter(
-        params -> params[:high_reliability] > params[:low_reliability],
+        params -> params[:high_payoff] > params[:low_payoff],
         params_list
     )
 
     countbehaviors(behaviors) = countmap(behaviors)
 
-    adata = [(:behavior, countbehaviors), (:soclearnfreq, mean)]
-    mdata = [:reliability_variance, :trial_idx, :high_reliability, :low_reliability, :nbehaviors, :steps_per_round] 
+    adata = [(:behavior, countbehaviors), (:soclearnfreq, mean), (:vertical_squeeze, mean)]
+    mdata = [:reliability_variance, :trial_idx, :high_payoff, :low_payoff, :nbehaviors, :steps_per_round] 
 
     models = [
         uncertainty_learning_model(;
@@ -70,7 +70,7 @@ end
 
 
 # function makeresdf(adf, mdf, models)
-#     res = mdf[!, [:high_reliability, :low_reliability, :nbehaviors]]
+#     res = mdf[!, [:high_payoff, :low_payoff, :nbehaviors]]
 #     res.pct_optimal = map(r -> r.countbehaviors_behavior[1] / length(models[1].agents), eachrow(adf))
 
 #     res[!, :steps] .= adf.step[1]
@@ -138,16 +138,16 @@ end
 #         nagents = 100;
 #         nbehaviors = [2, 5, 10, 20, 50, 100], 
 #         reliability_variance = [1e-6, 1e-3, 1e-1],
-#         high_reliability = [0.2, 0.6, 0.9], low_reliability = [0.1, 0.5, 0.8],
+#         high_payoff = [0.2, 0.6, 0.9], low_payoff = [0.1, 0.5, 0.8],
 #         steps = 20, selection_strategy = ϵGreedy, selection_temperature = 0.05
 #     )
 
 #     params_list = dict_list(
-#         @dict reliability_variance steps nbehaviors high_reliability low_reliability  
+#         @dict reliability_variance steps nbehaviors high_payoff low_payoff  
 #     )
 
 #     params_list = filter(
-#         params -> params[:high_reliability] > params[:low_reliability],
+#         params -> params[:high_payoff] > params[:low_payoff],
 #         params_list
 #     )
 
@@ -158,7 +158,7 @@ end
 #     # adata = [(:behavior, countbehaviors), (:ledger, ledgers)]
 #     adata = [(:behavior, countbehaviors)]
 #     # adata = [:behavior]
-#     mdata = [:reliability_variance, :high_reliability, :low_reliability, :nbehaviors] 
+#     mdata = [:reliability_variance, :high_payoff, :low_payoff, :nbehaviors] 
 
 #     if selection_strategy == ϵGreedy
 #         indivlearn_models = [

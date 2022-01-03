@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=24
 #SBATCH --mem-per-cpu=10G
 #SBATCH --time=12:00:00
-#SBATCH --output=roundsteps.out
+#SBATCH --output=roundsteps_transledger=false.out
 #SBATCH --partition=serc,normal
 
 

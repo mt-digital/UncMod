@@ -36,12 +36,12 @@ function uncertainty_learning_model(;
                                     τ_init = 0.01,
                                     dτ = 9.999e-5,
                                     # payoff_learning_bias = false,
-                                    high_reliability = nothing,
-                                    low_reliability = nothing,
+                                    high_payoff = nothing,
+                                    low_payoff = nothing,
                                     nbehaviors = nothing,
                                     trial_idx = nothing,
                                     annealing = true,
-                                    vertical_trans = true,
+                                    vertical = true,
                                     # Says how much to reduce the ledger when 
                                     # passed between generations.
                                     model_parameters...)
@@ -49,8 +49,8 @@ function uncertainty_learning_model(;
     if isnothing(nbehaviors)
         nbehaviors = length(base_reliabilities)
     else
-        base_reliabilities = [low_reliability for _ in 1:nbehaviors]
-        base_reliabilities[1] = high_reliability
+        base_reliabilities = [low_payoff for _ in 1:nbehaviors]
+        base_reliabilities[1] = high_payoff
     end
 
     tick = 1
@@ -65,7 +65,7 @@ function uncertainty_learning_model(;
         
         Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
 
-        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers τ_init regen_reliabilities low_reliability high_reliability trial_idx annealing vertical_trans
+        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers τ_init regen_reliabilities low_payoff high_payoff trial_idx annealing vertical
     )
     
     # Initialize model. 
@@ -353,7 +353,7 @@ function repro_with_mutations!(model, parent, child)
     # Setting dead agent's fields with relevant repro agent's, no mutation yet.
     child.parent = parent.uuid
 
-    if model.vertical_trans
+    if model.vertical
         transmit_vertical!(parent, child)
     else
         child.ledger = zeros(Float64, model.nbehaviors)
@@ -362,7 +362,13 @@ function repro_with_mutations!(model, parent, child)
     
     # Social learning frequency and vertical squeeze amount are both inherited
     # with mutation.
-    for mutparam in [:soclearnfreq, :vertical_squeeze]
+    if model.vertical
+        mutparams = [:soclearnfreq, :vertical_squeeze]
+    else
+        mutparams = [:soclearnfreq]
+    end
+
+    for mutparam in mutparams
         mutdistro = model.mutation_distro
         newparamval = getproperty(parent, mutparam) + rand(mutdistro)
 
