@@ -1,3 +1,6 @@
+using DrWatson
+quickactivate("..")
+
 using DataFrames
 using Gadfly
 using JLD2
@@ -17,7 +20,7 @@ PROJECT_THEME = Theme(
 function plot_series(
     result; 
     start_step = 0, 
-    legendkeys = [:nbehaviors, :low_reliability, :high_reliability],
+    legendkeys = [:nbehaviors, :low_payoff, :high_payoff],
     outcomevar = :soclearnfreq,)
     
     if result isa String
@@ -69,44 +72,45 @@ function payoffs_heatmap(
     result;
     agg_start_step = 80_000,
     zvar = :soclearnfreq,
-    colormin = 0.45, colormax = 0.65)
+    colormin = 0.45, colormax = 0.65, title = nothing)
 
     endtimesdf = filter(r -> r.step >= agg_start_step, result)
 
     endtimesgrouped = sort(combine(
-        groupby(endtimesdf, [:low_reliability, :high_reliability]), 
+        groupby(endtimesdf, [:low_payoff, :high_payoff]), 
 
-        [:soclearnfreq, :pct_optimal] =>
-        ((soclearnfreq, pct_optimal) ->
+        [:soclearnfreq, :vertical_squeeze, :pct_optimal] =>
+        ((soclearnfreq, vertical_squeeze, pct_optimal) ->
             (soclearnfreq = mean(soclearnfreq),
+             vertical_squeeze = mean(vertical_squeeze),
              pct_optimal = mean(pct_optimal))
         ) =>
         AsTable),
 
-        [:low_reliability, :high_reliability]
+        [:low_payoff, :high_payoff]
     )
     
     # plotdata = endtimesgrouped
-    # lowrels = vcat(unique(endtimesgrouped.low_reliability), 0.9)
-    # highrels = vcat(0.1, unique(endtimesgrouped.high_reliability))
+    # lowpayoffs = vcat(unique(endtimesgrouped.low_payoff), 0.9)
+    # highpayoffs = vcat(0.1, unique(endtimesgrouped.high_payoff))
 
-    lowrels = vcat(unique(endtimesgrouped.low_reliability), 0.9)
-    highrels = vcat(1.0, unique(endtimesgrouped.high_reliability))
-    nrels = length(lowrels)
+    lowpayoffs = vcat(unique(endtimesgrouped.low_payoff), 0.9)
+    highpayoffs = vcat(1.0, unique(endtimesgrouped.high_payoff))
+    nrels = length(lowpayoffs)
 
-    lowrels = vcat([repeat([lowrels[ii]], nrels) for ii in 1:nrels]...)
-    highrels = repeat(highrels, nrels)
+    lowpayoffs = vcat([repeat([lowpayoffs[ii]], nrels) for ii in 1:nrels]...)
+    highpayoffs = repeat(highpayoffs, nrels)
 
     plotdata = DataFrame(
-        :π_high => highrels,
-        :π_low => lowrels,
+        :π_high => highpayoffs,
+        :π_low => lowpayoffs,
         :z => NaN
     )
     
     # println(endtimesgrouped)
     for row in eachrow(endtimesgrouped)
-        rowselector = (plotdata.π_low  .== row.low_reliability) .& 
-                      (plotdata.π_high .== row.high_reliability)
+        rowselector = (plotdata.π_low  .== row.low_payoff) .& 
+                      (plotdata.π_high .== row.high_payoff)
         plotdata[rowselector, :z] .= row[zvar]
     end
 
@@ -119,6 +123,8 @@ function payoffs_heatmap(
 
     if zvar == :soclearnfreq
         zlabel = "Social learning frequency"
+    elseif zvar == :vertical_squeeze
+        zlabel = "Vertial trans. magnitude"
     else
         zlabel = "% Optimal"
     end
@@ -127,8 +133,9 @@ function payoffs_heatmap(
         Scale.x_discrete(labels = x -> xticklabels[x]),
         Guide.xticks(orientation=:vertical),
         Guide.xlabel("π_low"), Guide.ylabel("π_high"),
-
         Scale.y_discrete(labels = y -> yticklabels[y]),
+
+        Guide.title(title),
 
         Scale.color_continuous(minvalue=colormin, maxvalue=colormax),
         Guide.colorkey(title = zlabel),
@@ -140,7 +147,7 @@ end
 function plot_final(result;
     agg_start_step = 80_000,
     xvar = :nbehaviors, yvar = :soclearnfreq, 
-    legendkeys = [:low_reliability, :high_reliability],
+    legendkeys = [:low_payoff, :high_payoff],
     xticks = [5, 20, 100],
     yticks = 0.0:0.2:1.0,
     xlabel = nothing,
@@ -169,9 +176,10 @@ function plot_final(result;
     endtimesgroupby = combine(
         groupby(endtimesdf, vcat(xvar, legendkeys)), 
 
-        [:soclearnfreq, :pct_optimal] =>
-        ((soclearnfreq, pct_optimal) ->
+        [:soclearnfreq, :vertical_squeeze, :pct_optimal] =>
+        ((soclearnfreq, vertical_squeeze, pct_optimal) ->
             (soclearnfreq = mean(soclearnfreq),
+             vertical_squeeze = mean(vertical_squeeze),
              pct_optimal = mean(pct_optimal))
         ) =>
         AsTable
@@ -198,6 +206,8 @@ function plot_final(result;
 
     if yvar == :soclearnfreq
         ylabel = "Social learning frequency"
+    elseif yvar == :vertical_squeeze
+        ylabel = "Vertical trans. magnitude"
     else
         ylabel = "% Optimal"
     end
@@ -221,13 +231,13 @@ function plot_final(result;
         
 end
 
-function make_title(models)
-    if models[1].selection_strategy == Softmax
-        title = "τ = $(models[1].τ_init)\n$legendtitle"
-    else
-        title = "ϵ = $(models[1].ϵ_init)\n$legendtitle"
-    end
-end
+# function make_title(models)
+#     if models[1].selection_strategy == Softmax
+#         title = "τ = $(models[1].τ_init)\n$legendtitle"
+#     else
+#         title = "ϵ = $(models[1].ϵ_init)\n$legendtitle"
+#     end
+# end
 
 function make_legend_tuple(result, legendkeys)
 
