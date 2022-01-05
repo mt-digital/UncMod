@@ -71,7 +71,7 @@ function parse_cli()
             help = "Flag to include vertical transmission in simulation."
             action = :store_true
 
-        "--env_uncert", "-u"
+        "--env_uncertainty", "-u"
             help = "Probability optimal behavior switches after a round/generation."
             arg_type = Vector{Float64}
             default = [0.0]
@@ -110,24 +110,22 @@ function run_trials(ntrials = 100;
         eachrow(adf)
     )
 
-    resdf = innerjoin(adf[!, Not([:countbehaviors_behavior])], 
+    resdf = innerjoin(adf,
                       mdf, 
                       on = [:ensemble, :step])
 
-    println(resdf)
     result = combine(
         # Groupby experimental variables...
-        groupby(resdf, [:step, :nbehaviors, :low_payoff, 
-                :high_payoff, :reliability_variance, :steps_per_round]),
+        groupby(resdf, [:step, :nbehaviors, :low_payoff, :high_payoff, 
+                        :env_uncertainty, :payoff_variance, :steps_per_round]),
 
         # ...and aggregate by taking means over outcome variables, convert to table.
-        
-        [:mean_soclearnfreq, :mean_vertical_squeeze, :pct_optimal] 
+        [:mean_soclearnfreq, :mean_vertical_transmag, :pct_optimal] 
             =>
                 (
-                    (soclearnfreq, vertical_squeeze, pct_optimal) -> 
+                    (soclearnfreq, vertical_transmag, pct_optimal) -> 
                         (soclearnfreq = mean(soclearnfreq),
-                         vertical_squeeze = mean(vertical_squeeze),
+                         vertical_transmag = mean(vertical_transmag),
                          pct_optimal = mean(pct_optimal))
                 ) 
             =>
@@ -145,7 +143,7 @@ end
 
 function main()
     parsed_args = parse_cli()
-    println("Parsed args:")
+    println("Simulation run with following arguments:")
     for (arg, val) in parsed_args
         println("    $arg => $val")
     end

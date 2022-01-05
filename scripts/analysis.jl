@@ -79,16 +79,18 @@ function payoffs_heatmap(
     endtimesgrouped = sort(combine(
         groupby(endtimesdf, [:low_payoff, :high_payoff]), 
 
-        [:soclearnfreq, :vertical_squeeze, :pct_optimal] =>
-        ((soclearnfreq, vertical_squeeze, pct_optimal) ->
+        [:soclearnfreq, :vertical_transmag, :pct_optimal] =>
+        ((soclearnfreq, vertical_transmag, pct_optimal) ->
             (soclearnfreq = mean(soclearnfreq),
-             vertical_squeeze = mean(vertical_squeeze),
+             vertical_transmag = mean(vertical_transmag),
              pct_optimal = mean(pct_optimal))
         ) =>
         AsTable),
 
         [:low_payoff, :high_payoff]
     )
+
+    println(endtimesgrouped)
     
     # plotdata = endtimesgrouped
     # lowpayoffs = vcat(unique(endtimesgrouped.low_payoff), 0.9)
@@ -123,7 +125,7 @@ function payoffs_heatmap(
 
     if zvar == :soclearnfreq
         zlabel = "Social learning frequency"
-    elseif zvar == :vertical_squeeze
+    elseif zvar == :vertical_transmag
         zlabel = "Vertial trans. magnitude"
     else
         zlabel = "% Optimal"
@@ -176,10 +178,10 @@ function plot_final(result;
     endtimesgroupby = combine(
         groupby(endtimesdf, vcat(xvar, legendkeys)), 
 
-        [:soclearnfreq, :vertical_squeeze, :pct_optimal] =>
-        ((soclearnfreq, vertical_squeeze, pct_optimal) ->
+        [:soclearnfreq, :vertical_transmag, :pct_optimal] =>
+        ((soclearnfreq, vertical_transmag, pct_optimal) ->
             (soclearnfreq = mean(soclearnfreq),
-             vertical_squeeze = mean(vertical_squeeze),
+             vertical_transmag = mean(vertical_transmag),
              pct_optimal = mean(pct_optimal))
         ) =>
         AsTable
@@ -206,7 +208,7 @@ function plot_final(result;
 
     if yvar == :soclearnfreq
         ylabel = "Social learning frequency"
-    elseif yvar == :vertical_squeeze
+    elseif yvar == :vertical_transmag
         ylabel = "Vertical trans. magnitude"
     else
         ylabel = "% Optimal"
@@ -230,14 +232,6 @@ function plot_final(result;
      )
         
 end
-
-# function make_title(models)
-#     if models[1].selection_strategy == Softmax
-#         title = "τ = $(models[1].τ_init)\n$legendtitle"
-#     else
-#         title = "ϵ = $(models[1].ϵ_init)\n$legendtitle"
-#     end
-# end
 
 function make_legend_tuple(result, legendkeys)
 

@@ -26,12 +26,11 @@ function uncertainty_learning_model(;
                                     mutation_magnitude = 0.1,  # σₘ in paper.
                                     # learnparams_mutating = [:homophily, :exploration, :soclearnfreq],
                                     # learnparams_mutating = [:soclearnfreq],
-                                    base_reliabilities = [0.5, 0.5],
-                                    reliability_variance = 0.1,
+                                    base_payoffs = [0.5, 0.5],
+                                    payoff_variance = 0.1,
                                     steps_per_round = 10,
-                                    ntoreprodie = 10,
                                     nteachers = 10,
-                                    regen_reliabilities = false,
+                                    regen_payoffs = false,
                                     init_soclearnfreq = 0.0,
                                     τ_init = 0.01,
                                     dτ = 9.999e-5,
@@ -42,15 +41,16 @@ function uncertainty_learning_model(;
                                     trial_idx = nothing,
                                     annealing = true,
                                     vertical = true,
+                                    env_uncertainty = 0.0,
                                     # Says how much to reduce the ledger when 
                                     # passed between generations.
                                     model_parameters...)
     
     if isnothing(nbehaviors)
-        nbehaviors = length(base_reliabilities)
+        nbehaviors = length(base_payoffs)
     else
-        base_reliabilities = [low_payoff for _ in 1:nbehaviors]
-        base_reliabilities[1] = high_payoff
+        base_payoffs = [low_payoff for _ in 1:nbehaviors]
+        base_payoffs[1] = high_payoff
     end
 
     tick = 1
@@ -63,9 +63,10 @@ function uncertainty_learning_model(;
 
         Dict(model_parameters), 
         
-        Dict(:mutation_distro => Normal(0.0, mutation_magnitude)),
+        Dict(:mutation_distro => Normal(0.0, mutation_magnitude),
+             :optimal_behavior => 1),
 
-        @dict steps_per_round ntoreprodie tick base_reliabilities reliability_variance  nbehaviors nteachers τ_init regen_reliabilities low_payoff high_payoff trial_idx annealing vertical
+        @dict steps_per_round tick low_payoff high_payoff base_payoffs payoff_variance  nbehaviors nteachers τ_init regen_payoffs low_payoff high_payoff trial_idx annealing vertical env_uncertainty
     )
     
     # Initialize model. 
@@ -78,8 +79,8 @@ function uncertainty_learning_model(;
         add_agent!(LearningAgent(
                        id = idx,
                        behavior = sample(1:nbehaviors),
-                       reliabilities = 
-                        draw_reliabilities(base_reliabilities, reliability_variance),
+                       payoffs = 
+                        draw_payoffs(base_payoffs, payoff_variance),
                        ledger = zeros(Float64, nbehaviors),
                        behavior_count = zeros(Int64, nbehaviors),
                        soclearnfreq = init_soclearnfreq,
@@ -105,14 +106,14 @@ end
     # Constant factors and parameters.
     id::Int
 
-    # Behavior represented by int that indexes reliabilities to probabilistically
+    # Behavior represented by int that indexes payoffs to probabilistically
     # generate payoff.
     behavior::Int64
-    reliabilities::Array{Float64}
+    payoffs::Array{Float64}
 
     # Learning parameters.
     soclearnfreq::Float64 
-    vertical_squeeze::Float64 = 0.1
+    vertical_transmag::Float64 = 0.1
 
     # Softmax temperature
     τ::Float64 
@@ -139,18 +140,13 @@ end
 end
 
 
-
-
-
-
 """
 Generate a payoff that will be distributed to an agent performing the 
-behavior with prob proportional to reliability for the chosen payoff.
+behavior with prob proportional to payoff for the chosen payoff.
 """
-function generate_payoff!(focal_agent::LearningAgent)  #behavior_idx::Int64, reliabilities::Array{Float64})
+function generate_payoff!(focal_agent::LearningAgent)  #behavior_idx::Int64, payoffs::Array{Float64})
 
-    # println(focal_agent.reliabilities)
-    if rand() < focal_agent.reliabilities[focal_agent.behavior]
+    if rand() < focal_agent.payoffs[focal_agent.behavior]
         payoff = 1.0
     else
         payoff = 0.0
@@ -162,7 +158,7 @@ function generate_payoff!(focal_agent::LearningAgent)  #behavior_idx::Int64, rel
 end
 
 
-# Convert the desired reliability mean and variance to Beta dist parameters.
+# Convert the desired payoff mean and variance to Beta dist parameters.
 function μσ²_to_αβ(μ, σ²)
 
     α::Float64 = (μ^2) * (((1 - μ) / σ²) - (1/μ))
@@ -172,11 +168,11 @@ function μσ²_to_αβ(μ, σ²)
 end
 
 
-function draw_reliabilities(base_reliabilities, reliability_variance)
+function draw_payoffs(base_payoffs, payoff_variance)
 
-    # Transform base reliabilities and reliability variance into Beta dist params.
-    params = map(base_rel -> μσ²_to_αβ(base_rel, reliability_variance),
-                        base_reliabilities)
+    # Transform base payoffs and payoff variance into Beta dist params.
+    params = map(base_rel -> μσ²_to_αβ(base_rel, payoff_variance),
+                        base_payoffs)
 
     return map(
         ((α, β),) -> rand(Beta(α, β)),
@@ -239,7 +235,7 @@ end
 """
 """
 function agent_step!(focal_agent::LearningAgent, 
-                     model::ABM)
+                     model::ABM) 
 
     select_behavior!(focal_agent, model)
     generate_payoff!(focal_agent)
@@ -252,8 +248,8 @@ end
 """
 function model_step!(model)
 
-    # println(model.step)
     for agent in allagents(model)
+     
         # Accumulate, record, and reset step payoff values.
         agent.prev_net_payoff = agent.net_payoff
         agent.net_payoff += agent.step_payoff
@@ -261,14 +257,11 @@ function model_step!(model)
         # Update ledger and behavior counts.
         prevledg = agent.ledger[agent.behavior]
         agent.behavior_count[agent.behavior] += 1
-        # println(prevledg)
         updated_ledger_amt = prevledg + (
                 (agent.step_payoff - prevledg) / 
                 agent.behavior_count[agent.behavior]
                 # Float64(agent.behavior_count[agent.behavior])
             )
-        # println(updated_ledger_amt)
-        # println(agent.behavior_count)
         agent.ledger[agent.behavior] = updated_ledger_amt
 
         # Reset payoffs for the next time step.
@@ -278,10 +271,6 @@ function model_step!(model)
             agent.τ -= agent.dτ
         end
         
-        # if model.regen_reliabilities
-            # agent.reliabilities = draw_reliabilities(model.base_reliabilities,
-            #                                          model.reliability_variance)
-        # end
     end
 
     # If the model has gone steps_per_round time steps since the last model
@@ -289,6 +278,16 @@ function model_step!(model)
     if model.tick % model.steps_per_round == 0
 
         evolve!(model)
+
+        set_new_optimal_behavior = false
+        if model.vertical && (rand() < model.env_uncertainty)
+
+            model.optimal_behavior = sample(1:model.nbehaviors)
+            model.base_payoffs = [model.low_payoff for _ in 1:model.nbehaviors]
+            model.base_payoffs[model.optimal_behavior] = model.high_payoff
+
+            set_new_optimal_behavior = true
+        end
 
         for agent in allagents(model)
 
@@ -299,11 +298,12 @@ function model_step!(model)
             # Reset softmax temperature to re-start in-round annealing.
             agent.τ = model.τ_init
 
-            if model.regen_reliabilities
-                agent.reliabilities = draw_reliabilities(
-                    model.base_reliabilities, model.reliability_variance
+            if set_new_optimal_behavior
+                agent.payoffs = draw_payoffs(
+                    model.base_payoffs, model.payoff_variance
                 )
             end
+
         end
 
     end
@@ -322,24 +322,6 @@ function select_reproducers(model::ABM)
     
     ret = collect(allagents(model))[select_idxs]
     return ret
-end
-
-
-function select_to_die(model, reproducers)
-    agents = allagents(model)
-
-    N = nagents(model)
-    all_idxs = 1:N
-    repro_ids = map(a -> a.id, reproducers)
-    # XXX we are not allowing reproducing agents to possibly die. Problem? XXX
-    available_idxs = filter(idx -> !(idx ∈ repro_ids), all_idxs)
-    agent_ages = map(id -> model[id].age, available_idxs)
-    select_idxs = sample(available_idxs, 
-                         Weights(agent_ages), 
-                         model.properties[:ntoreprodie],
-                         replace = false)
-
-    return filter(a -> a.id ∈ select_idxs, collect(allagents(model)))
 end
 
 
@@ -363,7 +345,7 @@ function repro_with_mutations!(model, parent, child)
     # Social learning frequency and vertical squeeze amount are both inherited
     # with mutation.
     if model.vertical
-        mutparams = [:soclearnfreq, :vertical_squeeze]
+        mutparams = [:soclearnfreq, :vertical_transmag]
     else
         mutparams = [:soclearnfreq]
     end
@@ -393,12 +375,14 @@ function transmit_vertical!(parent, child)
 
     child.ledger = 
         parent_mean + 
-        (parent.vertical_squeeze*(parent_mean .- parent.ledger))
+        (parent.vertical_transmag*(parent_mean .- parent.ledger))
 
     child.behavior_count = 
         Integer.(
-            floor.(parent.behavior_count .* parent.vertical_squeeze)
+            floor.(parent.behavior_count .* parent.vertical_transmag)
         )
+
+    child.behavior = parent.behavior
 end
 
 
