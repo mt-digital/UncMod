@@ -23,7 +23,7 @@ using Debugger
 function uncertainty_learning_model(; 
                                     nagents = 100, 
                                     # minority_frac = 0.5, 
-                                    mutation_magnitude = 0.1,  # σₘ in paper.
+                                    mutation_magnitude = 0.0,  # σₘ in paper.
                                     # learnparams_mutating = [:homophily, :exploration, :soclearnfreq],
                                     # learnparams_mutating = [:soclearnfreq],
                                     base_payoffs = [0.5, 0.5],
@@ -152,6 +152,9 @@ function generate_payoff!(focal_agent::LearningAgent)  #behavior_idx::Int64, pay
         payoff = 0.0
     end
 
+    # Here the step payoff is stored until all agents have asynchronously 
+    # gotten their step payoff. Payoffs are be added to net_payoffs and to the
+    # agent's ledger in model_step!.
     focal_agent.step_payoff = payoff
 
     return payoff
@@ -375,7 +378,7 @@ function transmit_vertical!(parent, child)
 
     child.ledger = 
         parent_mean + 
-        (parent.vertical_transmag*(parent_mean .- parent.ledger))
+        (parent.vertical_transmag*(parent.ledger .- parent_mean))
 
     child.behavior_count = 
         Integer.(
