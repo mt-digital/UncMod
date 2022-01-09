@@ -1,4 +1,5 @@
 using Distributed
+using Dates
 
 using DrWatson
 quickactivate("..")
@@ -101,6 +102,9 @@ function run_trials(ntrials = 100;
                     experiment_kwargs...)
 
     println(experiment_kwargs)
+
+    tic = now()
+
     adf, mdf, models = experiment(ntrials; experiment_kwargs...)
 
     adf.pct_optimal = map(
@@ -138,6 +142,10 @@ function run_trials(ntrials = 100;
      
 
     @save outputfilename result
+
+    trialstime = Dates.toms(now() - tic) / (60.0 * 1000.0)
+
+    println("Ran expected payoffs trials in $trialstime minutes")
 
 end
 
