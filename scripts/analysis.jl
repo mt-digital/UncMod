@@ -90,12 +90,6 @@ function payoffs_heatmap(
         [:low_payoff, :high_payoff]
     )
 
-    println(endtimesgrouped)
-    
-    # plotdata = endtimesgrouped
-    # lowpayoffs = vcat(unique(endtimesgrouped.low_payoff), 0.9)
-    # highpayoffs = vcat(0.1, unique(endtimesgrouped.high_payoff))
-
     lowpayoffs = vcat(unique(endtimesgrouped.low_payoff), 0.9)
     highpayoffs = vcat(1.0, unique(endtimesgrouped.high_payoff))
     nrels = length(lowpayoffs)
@@ -115,8 +109,13 @@ function payoffs_heatmap(
                       (plotdata.π_high .== row.high_payoff)
         plotdata[rowselector, :z] .= row[zvar]
     end
+    if zvar == :soclearnfreq
+        z = plotdata[!, :z]
+        z = (2 .* z) .- 1  # Transform slf to soc learn - asoc learn freq.
+    end
 
-    z = reshape(plotdata[!, :z], nrels, nrels)
+    z = reshape(z, nrels, nrels)
+    # z = reshape(plotdata[!, :z], nrels, nrels)
 
     xticklabels = Dict(zip(1:9, map(t -> string(t), 0.1:0.1:0.9)))
     yticklabels = Dict(zip(1:9, map(t -> string(t), reverse(0.1:0.1:0.9))))
@@ -124,7 +123,8 @@ function payoffs_heatmap(
     z = reverse(z, dims=1)
 
     if zvar == :soclearnfreq
-        zlabel = "Social learning frequency"
+        zlabel = "s - a"
+        # zlabel = "Social learning frequency"
     elseif zvar == :vertical_transmag
         zlabel = "Vertial trans. magnitude"
     else
@@ -146,7 +146,8 @@ function payoffs_heatmap(
 end
 
 
-function plot_final(result;
+function plot_final(
+    result;
     agg_start_step = 80_000,
     xvar = :nbehaviors, yvar = :soclearnfreq, 
     legendkeys = [:low_payoff, :high_payoff],
@@ -207,7 +208,9 @@ function plot_final(result;
     end
 
     if yvar == :soclearnfreq
-        ylabel = "Social learning frequency"
+        endtimesgroupby[:, yvar] = (2 .* endtimesgroupby[:, yvar]) .- 1
+        ylabel = "s - a"
+        # ylabel = "Social learning frequency"
     elseif yvar == :vertical_transmag
         ylabel = "Vertical trans. magnitude"
     else
@@ -233,6 +236,25 @@ function plot_final(result;
         
 end
 
+
+function make_uncertainty_df(data_dir, experiment)
+
+    files = readdir(data_dir, join=true)
+
+    unc_df = load(files[1])["result"]
+    for file in files[2:end]
+        unc_df = vcat(unc_df, load(file)["result"])
+    end
+
+    if experiment == "expected-payoffs"
+        @assert length(unique(unc_df.nbehaviors)) == 1
+    end
+     
+    return unc_df
+
+end
+
+
 function make_legend_tuple(result, legendkeys)
 
     map(
@@ -250,3 +272,4 @@ function make_legend_tuple(result, legendkeys)
     )
 
 end
+

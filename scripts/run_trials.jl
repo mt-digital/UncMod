@@ -132,11 +132,6 @@ function run_trials(ntrials = 100;
                 AsTable
     )
 
-    # result.baserels_nbehs = 
-    #     map(r -> string((r.high_payoff, r.low_payoff, r.nbehaviors)), 
-    #         eachrow(result))
-     
-
     @save outputfilename result
 
 end
