@@ -23,7 +23,7 @@ using Debugger
 function uncertainty_learning_model(; 
                                     nagents = 100, 
                                     # minority_frac = 0.5, 
-                                    mutation_magnitude = 0.0,  # σₘ in paper.
+                                    mutation_magnitude = 0.05,  # σₘ in paper.
                                     # learnparams_mutating = [:homophily, :exploration, :soclearnfreq],
                                     # learnparams_mutating = [:soclearnfreq],
                                     base_payoffs = [0.5, 0.5],
