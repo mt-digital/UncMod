@@ -385,6 +385,9 @@ function transmit_vertical!(parent, child)
             floor.(parent.behavior_count .* parent.vertical_transmag)
         )
 
+    # Cap inherited behavior counts at 1.
+    child.behavior_count[child.behavior_count .> 0] .= 1
+
     child.behavior = parent.behavior
 end
 
