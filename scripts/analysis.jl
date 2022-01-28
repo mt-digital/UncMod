@@ -11,7 +11,7 @@ include("../src/experiment.jl")
 
 
 PROJECT_THEME = Theme(
-    point_size=6.5pt, major_label_font_size = 16pt, 
+    point_size=3.5pt, major_label_font_size = 16pt, 
     minor_label_font_size = 14pt, key_title_font_size=14pt, 
     line_width = 2pt, key_label_font_size=14pt
 )
@@ -109,8 +109,8 @@ function payoffs_heatmap(
                       (plotdata.π_high .== row.high_payoff)
         plotdata[rowselector, :z] .= row[zvar]
     end
+    z = plotdata[!, :z]
     if zvar == :soclearnfreq
-        z = plotdata[!, :z]
         z = (2 .* z) .- 1  # Transform slf to soc learn - asoc learn freq.
     end
 
@@ -123,7 +123,8 @@ function payoffs_heatmap(
     z = reverse(z, dims=1)
 
     if zvar == :soclearnfreq
-        zlabel = "s - a"
+        zlabel = "⟨s - a⟩"
+        # zlabel = "s - a"
         # zlabel = "Social learning frequency"
     elseif zvar == :vertical_transmag
         zlabel = "Vertial trans. magnitude"
@@ -134,7 +135,8 @@ function payoffs_heatmap(
     spy(z, 
         Scale.x_discrete(labels = x -> xticklabels[x]),
         Guide.xticks(orientation=:vertical),
-        Guide.xlabel("π_low"), Guide.ylabel("π_high"),
+        # Guide.xlabel("π_low"), Guide.ylabel("π_high"),
+        Guide.xlabel("π<sub> low</sub>"), Guide.ylabel("π<sub> high</sub>"),
         Scale.y_discrete(labels = y -> yticklabels[y]),
 
         Guide.title(title),
@@ -150,6 +152,8 @@ function plot_final(
     result;
     agg_start_step = 80_000,
     xvar = :nbehaviors, yvar = :soclearnfreq, 
+    linestylevar = :env_uncertainty,
+    # legendkeys = [:low_payoff, :high_payoff, :env_uncertainty],
     legendkeys = [:low_payoff, :high_payoff],
     xticks = [5, 20, 100],
     yticks = 0.0:0.2:1.0,
@@ -176,9 +180,15 @@ function plot_final(
     # using split/apply/combine. See line 30 in scripts/slurm/run_trials.jl.
     endtimesdf = filter(r -> r.step >= agg_start_step, result)
 
-    endtimesgroupby = combine(
-        groupby(endtimesdf, vcat(xvar, legendkeys)), 
+    if isnothing(linestylevar)
+        groupbydf = groupby(endtimesdf, vcat(xvar, legendkeys))
+    else
+        groupbydf = groupby(endtimesdf, vcat(xvar, legendkeys, linestylevar))
+    end
 
+    endtimesgroupby = combine(
+        groupbydf, 
+        # groupby(endtimesdf, vcat(xvar, legendkeys, linestylevar)),
         [:soclearnfreq, :vertical_transmag, :pct_optimal] =>
         ((soclearnfreq, vertical_transmag, pct_optimal) ->
             (soclearnfreq = mean(soclearnfreq),
@@ -209,7 +219,8 @@ function plot_final(
 
     if yvar == :soclearnfreq
         endtimesgroupby[:, yvar] = (2 .* endtimesgroupby[:, yvar]) .- 1
-        ylabel = "s - a"
+        ylabel = "⟨s - a⟩"
+        # ylabel = "Social-asocial difference, s - a"
         # ylabel = "Social learning frequency"
     elseif yvar == :vertical_transmag
         ylabel = "Vertical trans. magnitude"
@@ -217,20 +228,28 @@ function plot_final(
         ylabel = "% Optimal"
     end
 
+    # Hack for flexible line styles since can't set linestyle = nothing for, 
+    # e.g., plots over environmental variability u.
+    if isnothing(linestylevar)
+        endtimesgroupby[!, :dummy] .= true
+        linestylevar = :dummy
+    end 
+
     plot(
         endtimesgroupby,
         x = xvar, y = yvar, color = :legendtuple,
         Geom.line, 
         Geom.point, 
-        Theme(line_width=1.5pt),
+        Theme(line_width=1.5pt, point_size=1pt),
         Guide.xlabel(xlabel), Guide.ylabel(ylabel),
         Guide.colorkey(title=legendtitle),
         Guide.xticks(ticks=xticks), 
         Guide.yticks(ticks=yticks),
+        linestyle = linestylevar,
         # Guide.yticks(ticks=0.45:0.05:0.7), 
         # Coord.cartesian(ymin=-0.05),
         Guide.title(title),
-        shape=[Shape.diamond], 
+        shape=[Shape.circle], 
         PROJECT_THEME
      )
         
