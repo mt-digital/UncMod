@@ -258,7 +258,7 @@ end
 
 function make_uncertainty_df(data_dir, experiment)
 
-    files = readdir(data_dir, join=true)
+    files = [f for f in readdir(data_dir, join=true) if !occursin("Archive", f)]
 
     unc_df = load(files[1])["result"]
     for file in files[2:end]
