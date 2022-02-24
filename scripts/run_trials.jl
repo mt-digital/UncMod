@@ -72,6 +72,10 @@ function parse_cli()
             help = "Flag to include vertical transmission in simulation."
             action = :store_true
 
+        "--disable_horizontal"
+            help = "Flag to disable horizontal transmission in simulation."
+            action = :store_true
+
         "--env_uncertainty", "-u"
             help = "Probability optimal behavior switches after a round/generation."
             arg_type = Vector{Float64}
@@ -145,6 +149,7 @@ function run_trials(ntrials = 100;
 end
 
 function main()
+
     parsed_args = parse_cli()
     println("Simulation run with following arguments:")
     for (arg, val) in parsed_args

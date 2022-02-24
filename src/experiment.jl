@@ -16,9 +16,6 @@ end
 @everywhere include("model.jl")
 
 
-
-
-
 function experiment(ntrials = 100; 
                     nagents = 100, 
                     payoff_variance = [1e-8], 
@@ -30,13 +27,14 @@ function experiment(ntrials = 100;
                     mutation_magnitude = 0.05, 
                     regen_payoffs = false,
                     vertical = true,
+                    disable_horizontal = false,
                     whensteps = 1_000,
                     env_uncertainty = 0.0)
     
     trial_idx = collect(1:ntrials)
 
     params_list = dict_list(
-        @dict payoff_variance steps_per_round nbehaviors high_payoff low_payoff trial_idx vertical env_uncertainty
+        @dict payoff_variance steps_per_round nbehaviors high_payoff low_payoff trial_idx vertical env_uncertainty disable_horizontal
     )
 
     # We are not interested in cases where high expected payoff is less than
