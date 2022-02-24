@@ -219,7 +219,7 @@ function select_behavior!(focal_agent, model)
     # First, determine whether learning is individual or social for this step.
     focal_soclearnfreq = focal_agent.soclearnfreq    
 
-    if ((!disable_horizontal) && (rand() < focal_soclearnfreq)) 
+    if ((!model.disable_horizontal) && (rand() < focal_soclearnfreq)) 
         teachers = sample(
             filter(a -> a ≠ focal_agent, collect(allagents(model))), 
             model.nteachers
