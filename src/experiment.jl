@@ -47,8 +47,12 @@ function experiment(ntrials = 100;
 
     countbehaviors(behaviors) = countmap(behaviors)
 
-    adata = [(:behavior, countbehaviors), (:soclearnfreq, mean), (:vertical_transmag, mean)]
-    mdata = [:env_uncertainty, :optimal_behavior, :payoff_variance, :trial_idx, :high_payoff, :low_payoff, :nbehaviors, :steps_per_round] 
+    adata = [(:behavior, countbehaviors), (:soclearnfreq, mean), 
+             (:vertical_transmag, mean)]
+
+    mdata = [:env_uncertainty, :payoff_variance, 
+             :trial_idx, :high_payoff, :low_payoff, 
+             :nbehaviors, :steps_per_round, :pct_optimal] 
 
     models = [
         uncertainty_learning_model(;
@@ -65,5 +69,3 @@ function experiment(ntrials = 100;
         parallel = true
     )
 end
-
-

@@ -42,6 +42,7 @@ function uncertainty_learning_model(;
                                     annealing = true,
                                     vertical = true,
                                     env_uncertainty = 0.0,
+                                    disable_horizontal = false,
                                     # Says how much to reduce the ledger when 
                                     # passed between generations.
                                     model_parameters...)
@@ -66,7 +67,7 @@ function uncertainty_learning_model(;
         Dict(:mutation_distro => Normal(0.0, mutation_magnitude),
              :optimal_behavior => 1),
 
-        @dict steps_per_round tick low_payoff high_payoff base_payoffs payoff_variance  nbehaviors nteachers τ_init regen_payoffs low_payoff high_payoff trial_idx annealing vertical env_uncertainty
+        @dict steps_per_round tick low_payoff high_payoff base_payoffs payoff_variance  nbehaviors nteachers τ_init regen_payoffs low_payoff high_payoff trial_idx annealing vertical env_uncertainty disable_horizontal
     )
     
     # Initialize model. 
@@ -246,6 +247,13 @@ function agent_step!(focal_agent::LearningAgent,
 end
 
 
+function calculate_pct_optimal(model)
+    return mean(
+        map(agent -> agent.behavior == model.optimal_behavior, 
+            allagents(model))
+    )
+end
+
 
 """
 """
@@ -261,10 +269,9 @@ function model_step!(model)
         prevledg = agent.ledger[agent.behavior]
         agent.behavior_count[agent.behavior] += 1
         updated_ledger_amt = prevledg + (
-                (agent.step_payoff - prevledg) / 
-                agent.behavior_count[agent.behavior]
-                # Float64(agent.behavior_count[agent.behavior])
-            )
+            (agent.step_payoff - prevledg) / 
+            agent.behavior_count[agent.behavior]
+        )
         agent.ledger[agent.behavior] = updated_ledger_amt
 
         # Reset payoffs for the next time step.
@@ -405,4 +412,5 @@ function evolve!(model::ABM)
     for (idx, repro_agent) in enumerate(reproducers)
         repro_with_mutations!(model, repro_agent, terminals[idx])
     end
+
 end

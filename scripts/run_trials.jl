@@ -111,23 +111,23 @@ function run_trials(ntrials = 100;
 
     adf, mdf, models = experiment(ntrials; experiment_kwargs...)
 
-    adf.pct_optimal = map(
-        r -> (haskey(r.countbehaviors_behavior, 1) ? 
-                r.countbehaviors_behavior[1] : 
-                0.0 )  / length(models[1].agents), 
-        eachrow(adf)
-    )
+    # adf.pct_optimal = map(
+    #     r -> (haskey(r.countbehaviors_behavior, 1) ? 
+    #             r.countbehaviors_behavior[1] : 
+    #             0.0 )  / length(models[1].agents), 
+    #     eachrow(adf)
+    # )
 
-    resdf = innerjoin(adf,
-                      mdf, 
-                      on = [:ensemble, :step])
+    resdf = innerjoin(adf, mdf, on = [:ensemble, :step])
 
     result = combine(
+        
         # Groupby experimental variables...
         groupby(resdf, [:step, :nbehaviors, :low_payoff, :high_payoff, 
                         :env_uncertainty, :payoff_variance, :steps_per_round]),
 
-        # ...and aggregate by taking means over outcome variables, convert to table.
+        # ...and aggregate by taking means over outcome 
+        # variables, convert to table.
         [:mean_soclearnfreq, :mean_vertical_transmag, :pct_optimal] 
             =>
                 (

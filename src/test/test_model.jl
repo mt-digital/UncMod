@@ -8,43 +8,43 @@ include("../model.jl")
 
 @testset "Payoffs should have specified statistics." begin
     
-    @testset "Reliabilities should have expected statistics" begin
+    # @testset "Reliabilities should have expected statistics" begin
 
-        base_rels = [0.2, 0.8]
-        rel_var = 1e-8
-        model = uncertainty_learning_model(; 
-            n_agents=10, base_reliabilities=base_rels, reliability_variance=rel_var
-        ) 
+    #     base_rels = [0.2, 0.8]
+    #     rel_var = 1e-8
+    #     model = uncertainty_learning_model(; 
+    #         n_agents=10, base_reliabilities=base_rels, reliability_variance=rel_var
+    #     ) 
 
-        @test all(
-            map(agent -> all(
-                map(((idx, rel),) -> isapprox(rel, base_rels[idx]; 
-                                              atol=1e-4, rtol=1e-2),
-                    enumerate(agent.reliabilities))),
-                allagents(model)
-            )
-        )
+    #     @test all(
+    #         map(agent -> all(
+    #             map(((idx, rel),) -> isapprox(rel, base_rels[idx]; 
+    #                                           atol=1e-4, rtol=1e-2),
+    #                 enumerate(agent.payoffs))),
+    #             allagents(model)
+    #         )
+    #     )
 
-        @test all(agent -> length(agent.reliabilities) == 2, allagents(model))
+    #     @test all(agent -> length(agent.payoffs) == 2, allagents(model))
 
-        base_rels = [0.4, 0.4, 0.8]
-        rel_var = 1e-6
-        model = uncertainty_learning_model(; 
-            n_agents=10, base_reliabilities=base_rels, reliability_variance=rel_var
-        ) 
+    #     base_rels = [0.4, 0.4, 0.8]
+    #     rel_var = 1e-6
+    #     model = uncertainty_learning_model(; 
+    #         n_agents=10, base_reliabilities=base_rels, reliability_variance=rel_var
+    #     ) 
 
-        @test all(
-            map(agent -> all(
-                map(((idx, rel),) -> isapprox(rel, base_rels[idx]; 
-                                              atol=1e-4, rtol=1e-1),
-                    enumerate(agent.reliabilities))),
-                allagents(model)
-            )
-        )
+    #     @test all(
+    #         map(agent -> all(
+    #             map(((idx, rel),) -> isapprox(rel, base_rels[idx]; 
+    #                                           atol=1e-4, rtol=1e-1),
+    #                 enumerate(agent.payoffs))),
+    #             allagents(model)
+    #         )
+    #     )
 
-        @test all(agent -> length(agent.reliabilities) == 3, allagents(model))
+    #     @test all(agent -> length(agent.payoffs) == 3, allagents(model))
 
-    end
+    # end
 
     @testset "Payoffs based on set reliabilities should have specified statistics" begin
         model = uncertainty_learning_model(; n_agents=10) 
@@ -52,7 +52,7 @@ include("../model.jl")
         agent = model[1]
 
         r1 = 0.1; r2 = 0.45; r3 = 0.8
-        agent.reliabilities = [r1 r2 r3]
+        agent.payoffs = [r1 r2 r3]
         
         agent.behavior = 1
         payoffs = sum(map(_ -> generate_payoff!(agent), 1:1000))
@@ -84,17 +84,6 @@ end
     # Make sure focal agent selects behavior 2.
     select_behavior!(focal_agent, model)
     @test focal_agent.behavior == 2
-
-
-    # Make sure focal agent selects behavior 2 (1-ϵ) of the time under ϵ-greedy
-    chosen_behavior = []
-    model.selection_strategy = ϵGreedy
-    for _ in 1:1000
-        append!(chosen_behavior, select_behavior!(focal_agent, model))
-    end
-
-    @test isapprox(countmap(chosen_behavior)[2], 900; rtol=1e-1)
-
 end
 
 
@@ -111,8 +100,6 @@ end
     terminals_age = 1000
     foreach(ii -> model[ii].age = terminals_age, 6:10)
 
-    terminals = select_to_die(model, reproducers)
-
     evolve!(model)
 
     sorted_agents = sort(collect(allagents(model)), by = agent -> agent.id)
@@ -124,40 +111,61 @@ end
         @test all(expected_in_repro_ids)
     end
 
-    @testset "The correct number of old-ass agents should be selected to die off." begin
-        terminal_ids = map(t -> t.id, terminals)
-        expected_in_terminal_ids = map(tid -> tid ∈ 6:10, terminal_ids)
-        @test all(expected_in_terminal_ids)
-    end
+    # @testset "Parent-child relationships should be accurately recorded." begin
 
-    @testset "Parent-child relationships should be accurately recorded." begin
+    #     expected_children = sorted_agents[6:10]
+    #     @test all(map(child -> !isnothing(child.parent), expected_children))
 
-        expected_children = sorted_agents[6:10]
-        @test all(map(child -> !isnothing(child.parent), expected_children))
+    #     expected_children_parents = map(r -> r.parent, expected_children)
+    #     expected_parents_uuids = map(parent -> parent.uuid, sorted_agents[1:5])
+    #     @test all(
+    #         map(parent -> parent ∈ expected_parents_uuids, 
+    #             expected_children_parents)
+    #     )
+    # end
 
-        expected_children_parents = map(r -> r.parent, expected_children)
-        expected_parents_uuids = map(parent -> parent.uuid, sorted_agents[1:5])
-        @test all(
-            map(parent -> parent ∈ expected_parents_uuids, 
-                expected_children_parents)
-        )
-    end
+    # @testset "Inherited learning parameter should have changed through drift." begin
 
-    @testset "Inherited learning parameter should have changed through drift." begin
+    #     parent_by_uuid = Dict(
+    #         parent.uuid => parent
+    #         for parent in sorted_agents[1:5]
+    #     )
 
-        parent_by_uuid = Dict(
-            parent.uuid => parent
-            for parent in sorted_agents[1:5]
-        )
-
-        @test all(
-            map(
-                child -> 
-                    child.soclearnfreq ≠ 
-                    parent_by_uuid[child.parent].soclearnfreq,
-                sorted_agents[6:10]
-            )
-        )
-    end
+    #     @test all(
+    #         map(
+    #             child -> 
+    #                 child.soclearnfreq ≠ 
+    #                 parent_by_uuid[child.parent].soclearnfreq,
+    #             sorted_agents[6:10]
+    #         )
+    #     )
+    # end
 end
 
+
+@testset "Proper calcuation of number of agents performing optimal behavior" begin
+
+    model = uncertainty_learning_model(; nagents = 10)
+
+    for (idx, agent) in enumerate(allagents(model))
+        if idx > 8
+            agent.behavior = 3
+        else
+            agent.behavior = 1
+        end
+    end
+
+    model.optimal_behavior = 3
+    
+    @test calculate_pct_optimal(model) == 0.2
+
+    for (idx, agent) in enumerate(allagents(model))
+        if idx > 3
+            agent.behavior = 3
+        else
+            agent.behavior = 1
+        end
+    end
+
+    @test calculate_pct_optimal(model) == 0.7
+end

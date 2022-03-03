@@ -72,7 +72,9 @@ function payoffs_heatmap(
     result;
     agg_start_step = 80_000,
     zvar = :soclearnfreq,
-    colormin = 0.45, colormax = 0.65, title = nothing)
+    colormin = 0.0, 
+    colormax = 1.0, 
+    title = nothing)
 
     endtimesdf = filter(r -> r.step >= agg_start_step, result)
 
