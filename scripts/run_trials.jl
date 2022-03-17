@@ -97,7 +97,7 @@ function parse_cli()
     return parse_args(s)
 end
 
-function run_trials(ntrials = 100; 
+function run_trials(ntrials = 20; 
                     outputfilename = "trials_output.jld2", 
                     experiment_kwargs...)
 
@@ -118,25 +118,26 @@ function run_trials(ntrials = 100;
                       mdf, 
                       on = [:ensemble, :step])
 
-    result = combine(
-        # Groupby experimental variables...
-        groupby(resdf, [:step, :nbehaviors, :low_payoff, :high_payoff, 
-                        :env_uncertainty, :payoff_variance, :steps_per_round]),
+    # result = combine(
+    #     # Groupby experimental variables...
+    #     groupby(resdf, [:step, :nbehaviors, :low_payoff, :high_payoff, 
+    #                     :env_uncertainty, :payoff_variance, :steps_per_round]),
 
-        # ...and aggregate by taking means over outcome variables, convert to table.
-        [:mean_soclearnfreq, :mean_vertical_transmag, :pct_optimal] 
-            =>
-                (
-                    (soclearnfreq, vertical_transmag, pct_optimal) -> 
-                        (soclearnfreq = mean(soclearnfreq),
-                         vertical_transmag = mean(vertical_transmag),
-                         pct_optimal = mean(pct_optimal))
-                ) 
-            =>
-                AsTable
-    )
+    #     # ...and aggregate by taking means over outcome variables, convert to table.
+    #     [:mean_soclearnfreq, :mean_vertical_transmag, :pct_optimal] 
+    #         =>
+    #             (
+    #                 (soclearnfreq, vertical_transmag, pct_optimal) -> 
+    #                     (soclearnfreq = mean(soclearnfreq),
+    #                      vertical_transmag = mean(vertical_transmag),
+    #                      pct_optimal = mean(pct_optimal))
+    #             ) 
+    #         =>
+    #             AsTable
+    # )
 
-    @save outputfilename result
+    # @save outputfilename result
+    @save outputfilename resdf
 
     trialstime = Dates.toms(now() - tic) / (60.0 * 1000.0)
 
@@ -181,7 +182,7 @@ function main()
                pa_symbkeys...)
 end
 
-main()
+# main()
 
 
 # run_trials(10; niter = 100_000, transledger = false, outputfilename = "softmax_novertical.jld2")
