@@ -23,21 +23,14 @@ using Debugger
 """
 function uncertainty_learning_model(; 
                                     nagents = 100,  
-                                    # minority_frac = 0.5, 
-                                    mutation_magnitude = 0.05,  # σₘ in paper.
-                                    # learnparams_mutating = [:homophily, :exploration, :soclearnfreq],
-                                    # learnparams_mutating = [:soclearnfreq],
+                                    nbehaviors = 2,
                                     steps_per_round = 5,
                                     nteachers = 5,
-                                    # regen_payoffs = false,
-                                    init_soclearnfreq = 0.0,
-                                    τ_init = 0.01,
-                                    # dτ = 9.999e-5,
-                                    dτ = 0.0,
+                                    init_social_learner_prevalence = 0.5,
+                                    τ = 0.01,
                                     # payoff_learning_bias = false,
-                                    high_payoff = nothing,
-                                    low_payoff = nothing,
-                                    nbehaviors = nothing,
+                                    high_payoff = 0.9,
+                                    low_payoff = 0.1,
                                     trial_idx = nothing,
                                     # annealing = true,
                                     # vertical = true,
@@ -48,35 +41,45 @@ function uncertainty_learning_model(;
     
 
     tick = 1
-
+    optimal_behavior = 0
+    expected_payoffs = []
     # Build full dictionary of model parameters and mutation distribution.
     params = merge(
 
         Dict(model_parameters),  
-        
-        # Dict(:mutation_distro => Normal(0.0, mutation_magnitude),
-         Dict(:optimal_behavior => 1),
 
-        @dict steps_per_round tick low_payoff high_payoff nbehaviors nteachers τ_init trial_idx env_uncertainty mutation_prob
+        @dict steps_per_round tick low_payoff high_payoff nbehaviors nteachers trial_idx env_uncertainty optimal_behavior expected_payoffs τ
+
     )
-    
+
     # Initialize model. 
     model = ABM(LearningAgent, scheduler = Schedulers.fastest;
                 properties = params)
 
-    function add_soclearn_agent!(idx::Int64)
-        # For now initialize behaviors randomly. These can be modified after
-        # initialization as needed for different experiments.
-        add_agent!(LearningAgent(id = idx, τ = τ_init, dτ = dτ), model)
-                       # behavior = sample(1:nbehaviors),
-                       # ledger = zeros(Float64, nbehaviors),
-                       # behavior_count = zeros(Int64, nbehaviors),
-                       # social_learner = sample([true, false]),
-    end
+    model.optimal_behavior = sample(1:nbehaviors)
+    model.expected_payoffs = repeat([low_payoff], nbehaviors)
+    model.expected_payoffs[model.optimal_behavior] = high_payoff
     
     for ii in 1:nagents
-        # add_soclearn_agent!(ii)
-        add_agent!(LearningAgent(id = ii, τ = τ_init, dτ = dτ), model)
+
+        if rand(model.rng) < init_social_learner_prevalence
+            social_learner = true
+        else
+            social_learner = false
+        end
+
+        add_agent!(
+            LearningAgent(;
+                id = ii, 
+                behavior = 0,  # Doesn't matter, will be selected at random at init.
+                ledger = zeros(Float64, nbehaviors),
+                behavior_count = zeros(Int64, nbehaviors),
+                # social_learner = sample([true, false]),
+                social_learner = social_learner,
+            ), 
+            model
+        )
+
     end
 
     return model
@@ -93,31 +96,20 @@ end
 
     # Behavior represented by int that indexes payoffs to probabilistically
     # generate payoff.
-    behavior::Int = sample(1:nbehaviors)
-    social_learner::Bool = sample([false, true])
-
-    # Softmax temperature
-    τ::Float64 
-    # Softmax annealing subtractive change 
-    # dτ::Float64
+    behavior::Int
+    social_learner::Bool
 
     # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
     # some agents' payoffs to be higher just because they performed a behavior
     # before another.
-    prev_net_payoff::Float64 = 0.0
     step_payoff::Float64 = 0.0
     net_payoff::Float64 = 0.0
 
     # The ledger keeps track of individually-learned payoffs in each 
     # behavior-environment pair. Behaviors are rep'd by Int, which indexes
     # the ledger to look up previous payoffs and behavior counts.
-    ledger::Array{Float64} = zeros(Float64, nbehaviors)
-    behavior_count::Array{Int64} = zeros(Int64, nbehaviors)
-
-    age::Int64 = 0
-
-    uuid::UUID = uuid4()
-    parent::Union{UUID, Nothing} = nothing
+    ledger::Array{Float64}
+    behavior_count::Array{Int64}
 end
 
 
@@ -125,42 +117,22 @@ end
 Generate a payoff that will be distributed to an agent performing the 
 behavior with prob proportional to payoff for the chosen payoff.
 """
-function add_step_payoff!(focal_agent::LearningAgent)
+function add_step_payoff!(focal_agent::LearningAgent, model)
 
-    if rand() < model.expected_payoffs[focal_agent.behavior]
+    # The focal_agent's behavior pays off probabilistically.
+    if rand(model.rng) < model.expected_payoffs[focal_agent.behavior]
         payoff = 1.0
     else
         payoff = 0.0
     end
 
-    # Here the step payoff is stored until all agents have asynchronously 
-    # gotten their step payoff. Payoffs are be added to net_payoffs and to the
+    # The step payoff is stored until all agents have asynchronously 
+    # gotten their step payoff. Payoffs are added to net_payoffs and to the
     # agent's ledger in model_step!.
     focal_agent.step_payoff = payoff
 
     return nothing
 end
-
-
-# function learn_behavior(focal_agent::LearningAgent, 
-#                         model::ABM,
-#                         teachers = nothing)
-
-#     # If no teachers are provided this Asocial learning
-#     if isnothing(teachers)
-#         if !(sum(focal_agent.ledger) == 0.0)
-#             weights = Weights(softmax(focal_agent.ledger, focal_agent.τ))
-#             behavior = sample(1:model.nbehaviors, weights)
-#         else 
-#             behavior = focal_agent.behavior
-#         end
-#     else
-#         weights = Weights(map(a -> a.net_payoff, teachers))
-#         behavior = sample(teachers, weights).behavior
-#     end
-
-#     return behavior
-# end
 
 
 function softmax(payoffs::AbstractVector, τ::Float64)
@@ -174,7 +146,7 @@ end
 
 function select_behavior!(focal_agent, model)
     
-    weights = Weights(softmax(focal_agent.ledger, focal_agent.τ))
+    weights = Weights(softmax(focal_agent.ledger, model.τ))
     focal_agent.behavior = sample(1:model.nbehaviors, weights)
 
     return nothing
@@ -187,10 +159,9 @@ function agent_step!(focal_agent::LearningAgent,
                      model::ABM) 
 
     select_behavior!(focal_agent, model)
-    add_step_payoff!(focal_agent)
+    add_step_payoff!(focal_agent, model)
 
 end
-
 
 
 """
@@ -200,7 +171,6 @@ function model_step!(model)
     for agent in allagents(model)
      
         # Accumulate, record, and reset step payoff values.
-        agent.prev_net_payoff = agent.net_payoff
         agent.net_payoff += agent.step_payoff
         
         # Update ledger and behavior counts.
@@ -217,11 +187,6 @@ function model_step!(model)
         # Reset step payoff for the next time step.
         agent.step_payoff = 0.0
 
-        # Softmax annealing.
-        if model.annealing
-            agent.τ -= agent.dτ
-        end
-        
     end
 
     # If the model has gone steps_per_round time steps since the last model
@@ -230,25 +195,88 @@ function model_step!(model)
 
         evolve!(model)
 
-        if rand() < model.env_uncertainty
-            model.optimal_behavior = sample(1:model.nbehaviors)
+        if (model.env_uncertainty ≠ 0.0) && (rand(model.rng) < model.env_uncertainty)
+            model.optimal_behavior = sample(filter(b -> b ≠ model.optimal_behavior,
+                                            1:model.nbehaviors))
+
+            model.expected_payoffs = repeat([model.low_payoff], model.nbehaviors)
+            model.expected_payoffs[model.optimal_behavior] = model.high_payoff
         end
 
         for agent in allagents(model)
 
-            agent.prev_net_payoff = 0.0
+            # Reset net payoff and step payoffs.
             agent.net_payoff = 0.0
-
-            # TODO probably not actually necessary–check
-            agent.behavior = sample(1:model.nbehaviors)
-
-            # Reset softmax temperature to re-start in-round annealing.
-            agent.τ = model.τ_init
+            agent.step_payoff = 0.0
         end
 
     end
 
     model.tick += 1
+end
+
+
+
+
+# function reproduce_and_learn!(model, parent, child)
+    
+#     # Social learning frequency and vertical squeeze amount are both inherited
+#     # with mutation.
+#     child.social_learner = parent.social_learner
+
+#     if child.social_learner
+#         # 
+#         teachers = sample(collect(allagents(model)), model.nteachers, replace=false)
+#         teacher_idx = argmax(map(t -> t.net_payoff, teachers))
+#         teacher = teachers[teacher_idx]
+        
+#         child.ledger = teacher.ledger
+#         # and the count of observations of each behavior is reset to 1.
+#         child.behavior_count = repeat([1], model.nbehaviors)
+
+#     else
+#         # If child is not a social learner, ledger and counts are totally reset.
+#         child.ledger = zeros(Float64, model.nbehaviors)
+#         child.behavior_count = zeros(Int64, model.nbehaviors)
+#     end
+# end
+
+
+"""
+Agents in the model 'evolve', which means they (1) produce offspring asexually 
+with frequency proportional to relative payoffs---offspring inherit parent's
+learning strategy with mutation; (2) die off.
+"""
+function evolve!(model::ABM)
+
+    agents_coll = collect(allagents(model))
+
+    parents = select_parents(model)
+    parents_social_learner_trait = map(parent -> parent.social_learner, parents)
+
+    for (idx, social_learner) in enumerate(parents_social_learner_trait)
+        # reproduce_and_learn!(model, parent, agents_coll[idx])
+        child = agents_coll[idx]
+        child.social_learner = social_learner
+
+        if child.social_learner
+            # 
+            teachers = sample(collect(allagents(model)), 
+                              model.nteachers, replace=false)
+            teacher_idx = argmax(map(t -> t.net_payoff, teachers))
+            teacher = teachers[teacher_idx]
+            
+            child.ledger = teacher.ledger
+            # and the count of observations of each behavior is reset to 1.
+            child.behavior_count = repeat([0], model.nbehaviors)
+
+        else
+            # If child is not a social learner, ledger and counts are totally reset.
+            child.ledger = zeros(Float64, model.nbehaviors)
+            child.behavior_count = zeros(Int64, model.nbehaviors)
+        end
+    end
+
 end
 
 
@@ -266,53 +294,6 @@ function select_parents(model::ABM)
     )
     
     # return collect(allagents(model))[parent_idxs]
-    return filter(a -> a.id ∈ parent_idxs, allagents(model))
-end
-
-
-function repro_learn_with_mutations!(model, parent, child)
-    
-    # Overwrite dead agent's information either with unique information or
-    # properties of parent as appropriate.
-    child.uuid = uuid4()
-    child.age = 0
-
-    # Setting dead agent's fields with relevant repro agent's, no mutation yet.
-    child.parent = parent.uuid
-
-    # Social learning frequency and vertical squeeze amount are both inherited
-    # with mutation.
-    if (model.mutation_prob > 0) && (rand() < model.mutation_prob)
-        child.social_learner = ~parent.social_learner
-    else
-        child.social_learner = parent.social_learner
-    end
-
-    if child.social_learner
-        # Child takes the ledger from parent...
-        child.ledger = parent.ledger
-        # and the count of observations of each behavior is reset to 1.
-        child.behavior_count = repeat([1], model.nbehaviors)
-    else
-        # If child is not a social learner, ledger and counts are totally reset.
-        child.ledger = zeros(Float64, model.nbehaviors)
-        child.behavior_count = zeros(Int64, model.nbehaviors)
-    end
-end
-
-
-"""
-Agents in the model 'evolve', which means they (1) produce offspring asexually 
-with frequency proportional to relative payoffs---offspring inherit parent's
-learning strategy with mutation; (2) die off.
-"""
-function evolve!(model::ABM)
-
-    for (idx, parent) in enumerate(select_parents(model))
-
-        repro_learn_with_mutations!(
-            model, repro_agent, collect(allagents(model))
-        )
-
-    end
+    ret = collect(allagents(model))[parent_idxs]
+    return ret
 end
