@@ -27,7 +27,7 @@ function uncertainty_learning_model(;
                                     steps_per_round = 5,
                                     nteachers = 5,
                                     init_social_learner_prevalence = 0.5,
-                                    τ = 0.01,
+                                    τ = 0.1,
                                     high_payoff = 0.9,
                                     low_payoff = 0.1,
                                     trial_idx = nothing,
@@ -263,7 +263,7 @@ function evolve!(model::ABM)
             
             child.ledger = teacher.ledger
             # and the count of observations of each behavior is reset to 1.
-            child.behavior_count = repeat([0], model.nbehaviors)
+            child.behavior_count = repeat([1], model.nbehaviors)
 
         else
             # If child is not a social learner, ledger and counts are totally reset.

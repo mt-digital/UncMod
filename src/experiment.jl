@@ -24,13 +24,15 @@ end
 
 function experiment(ntrials = 10; 
                     nagents = 100, 
-                    nbehaviors = [2,3,5], #,10,20],
+                    nbehaviors = [2], #,10,20],
                     high_payoff = [0.9],  # π_high in the paper
-                    low_payoff = [0.25, 0.5, 0.75],   # π_low in the paper
+                    low_payoff = [0.1, 0.5, 0.8],   # π_low in the paper
                     niter = 1000, 
-                    steps_per_round = [1,2,5,10],
+                    steps_per_round = [1,2,5],
                     whensteps = 10,
-                    env_uncertainty = collect(0.0:0.1:1.0))
+                    env_uncertainty = [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0]
+                    # env_uncertainty = collect(0.0:0.1:1.0)
+    )
     
     trial_idx = collect(1:ntrials)
 
