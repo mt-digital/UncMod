@@ -44,7 +44,7 @@ include("../model.jl")
     model[1].ledger = rand(nbehaviors)
     model.tick = steps_per_round
 
-    @testset "Next-gen individual learners should have zeroed-out ledger." begin
+    @testset "Next-gen social learners should have best-performing ledger." begin
         _, _ = run!(model, agent_step!, model_step!, 1)
         for agent in allagents(model)
             @test agent.ledger == model[1].ledger

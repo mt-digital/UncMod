@@ -28,15 +28,10 @@ function uncertainty_learning_model(;
                                     nteachers = 5,
                                     init_social_learner_prevalence = 0.5,
                                     τ = 0.01,
-                                    # payoff_learning_bias = false,
                                     high_payoff = 0.9,
                                     low_payoff = 0.1,
                                     trial_idx = nothing,
-                                    # annealing = true,
-                                    # vertical = true,
                                     env_uncertainty = 0.0,
-                                    # Says how much to reduce the ledger when 
-                                    # passed between generations.
                                     model_parameters...)
     
 

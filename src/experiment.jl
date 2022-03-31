@@ -22,23 +22,20 @@ end
 @everywhere include("model.jl")
 
 
-function experiment(ntrials = 20; 
+function experiment(ntrials = 10; 
                     nagents = 100, 
                     nbehaviors = [2,3,5], #,10,20],
                     high_payoff = [0.9],  # π_high in the paper
-                    # low_payoff = collect(0.1:0.1:0.89),   # π_low in the paper
-                    low_payoff = [0.1, 0.5, 0.89],   # π_low in the paper
+                    low_payoff = [0.25, 0.5, 0.75],   # π_low in the paper
                     niter = 1000, 
-                    # ngenerations = 20, 
-                    steps_per_round = [1,2,5,10], # ,20],
-                    mutation_prob = 0.05, 
+                    steps_per_round = [1,2,5,10],
                     whensteps = 10,
-                    env_uncertainty = [0.0, 0.33, 0.66, 1.0])
+                    env_uncertainty = collect(0.0:0.1:1.0))
     
     trial_idx = collect(1:ntrials)
 
     params_list = dict_list(
-        @dict steps_per_round nbehaviors high_payoff low_payoff trial_idx env_uncertainty mutation_prob
+        @dict steps_per_round nbehaviors high_payoff low_payoff trial_idx env_uncertainty
     )
 
     # We are not interested in cases where high expected payoff is less than
@@ -49,9 +46,7 @@ function experiment(ntrials = 20;
         params_list
     )
 
-    countbehaviors(behaviors) = countmap(behaviors)
-
-    adata = [(:behavior, countbehaviors), (:social_learner, mean)]
+    adata = [(:behavior, countmap), (:social_learner, mean)]
     mdata = [:env_uncertainty, :optimal_behavior, :trial_idx, :high_payoff, :low_payoff, :nbehaviors, :steps_per_round] 
 
     models = [
@@ -62,15 +57,19 @@ function experiment(ntrials = 20;
         for params in params_list
     ]
     
-    # niter = ngenerations * steps_per_round
-
-    return ensemblerun!(
+    adf, mdf = ensemblerun!(
         models, agent_step!, model_step!, niter; 
         adata, mdata, 
         when = (model, step) -> ( (step + 1) % whensteps == 0  ||  step == 0 ),
         # when = (step) -> ( (step + 1) % whensteps == 0  ||  step == 0 ),
         parallel = true
     )
+
+    resdf = innerjoin(adf,
+                      mdf, 
+                      on = [:ensemble, :step])
+
+    return resdf
 end
 
 
