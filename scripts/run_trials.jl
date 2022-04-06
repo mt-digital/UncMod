@@ -48,11 +48,6 @@ function parse_cli()
 
     @add_arg_table s begin
     
-        "experiment"
-            help = "The type of experiment to run: 'expected-payoffs', 'steps-per-round', or 'nbehaviors'."
-            arg_type = String
-            required = true
-
         "datadirname"
             help = "Where to save experiment data within data directory"
             arg_type = String
@@ -61,16 +56,12 @@ function parse_cli()
         "--niter"
             help = "Total number of iterations per simulation"
             arg_type = Int
-            default = 100_000
+            default = 1000
 
         "--ntrials"
             help = "Number of trial simulations to run for this experiment"
             arg_type = Int
             default = 100
-
-        "--vertical", "-v"
-            help = "Flag to include vertical transmission in simulation."
-            action = :store_true
 
         "--env_uncertainty", "-u"
             help = "Probability optimal behavior switches after a round/generation."
@@ -90,7 +81,7 @@ function parse_cli()
             arg_type = Vector{Float64}
 
         "--high_payoff"
-            help = "Low payoffs to include in experiment"
+            help = "High payoffs to include in experiment"
             arg_type = Vector{Float64}
     end
 
@@ -101,43 +92,15 @@ function run_trials(ntrials = 20;
                     outputfilename = "trials_output.jld2", 
                     experiment_kwargs...)
 
-    println(experiment_kwargs)
-
     tic = now()
 
-    adf, mdf, models = experiment(ntrials; experiment_kwargs...)
+    println("Starting trials at $(replace(string(tic), "T" => " "))")
 
-    adf.pct_optimal = map(
-        r -> (haskey(r.countbehaviors_behavior, 1) ? 
-                r.countbehaviors_behavior[1] : 
-                0.0 )  / length(models[1].agents), 
-        eachrow(adf)
-    )
+    adf, mdf = experiment(ntrials; experiment_kwargs...)
 
-    resdf = innerjoin(adf,
-                      mdf, 
-                      on = [:ensemble, :step])
+    println("About to save!!!")
 
-    # result = combine(
-    #     # Groupby experimental variables...
-    #     groupby(resdf, [:step, :nbehaviors, :low_payoff, :high_payoff, 
-    #                     :env_uncertainty, :payoff_variance, :steps_per_round]),
-
-    #     # ...and aggregate by taking means over outcome variables, convert to table.
-    #     [:mean_soclearnfreq, :mean_vertical_transmag, :pct_optimal] 
-    #         =>
-    #             (
-    #                 (soclearnfreq, vertical_transmag, pct_optimal) -> 
-    #                     (soclearnfreq = mean(soclearnfreq),
-    #                      vertical_transmag = mean(vertical_transmag),
-    #                      pct_optimal = mean(pct_optimal))
-    #             ) 
-    #         =>
-    #             AsTable
-    # )
-
-    # @save outputfilename result
-    @save outputfilename resdf
+    @save outputfilename adf mdf
 
     trialstime = Dates.toms(now() - tic) / (60.0 * 1000.0)
 
@@ -155,22 +118,21 @@ function main()
     # Depending on the experiment, ignore certain name keys.
     # experiment = parsed_args["experiment"]
     # rmkeys = ["experiment"]
-    experiment = pop!(parsed_args, "experiment")
     datadirname = pop!(parsed_args, "datadirname") 
 
     # Make a copy of parsed args for use in naming output.
     nameargs = copy(parsed_args)
 
-    rmkeys = []
-    if experiment == "expected-payoff"
-        rmkeys = [rmkeys..., "low_payoff", "high_payoff"]
-    end
+    # rmkeys = []
+    # if experiment == "expected-payoff"
+    #     rmkeys = [rmkeys..., "low_payoff", "high_payoff"]
+    # end
 
-    for rmkey in rmkeys
-        delete!(nameargs, rmkey)
-    end
+    # for rmkey in rmkeys
+    #     delete!(nameargs, rmkey)
+    # end
 
-    outputfilename = savename(experiment, parsed_args, "jld2")
+    outputfilename = savename(parsed_args, "jld2")
     outputfilename = replace(datadir(datadirname, outputfilename), " " => "")
 
     ntrials = pop!(parsed_args, "ntrials")
@@ -182,7 +144,7 @@ function main()
                pa_symbkeys...)
 end
 
-# main()
+main()
 
 
 # run_trials(10; niter = 100_000, transledger = false, outputfilename = "softmax_novertical.jld2")

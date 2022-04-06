@@ -49,7 +49,7 @@ function experiment(ntrials = 10;
     )
 
     adata = [(:behavior, countmap), (:social_learner, mean)]
-    mdata = [:env_uncertainty, :optimal_behavior, :trial_idx, :high_payoff, :low_payoff, :nbehaviors, :steps_per_round] 
+    mdata = [:env_uncertainty, :trial_idx, :high_payoff, :low_payoff, :nbehaviors, :steps_per_round] 
 
     models = [
         uncertainty_learning_model(;
@@ -67,11 +67,13 @@ function experiment(ntrials = 10;
         parallel = true
     )
 
-    resdf = innerjoin(adf,
-                      mdf, 
-                      on = [:ensemble, :step])
+    # resdf = innerjoin(adf,
+    #                   mdf, 
+    #                   on = [:ensemble, :step])
 
-    return resdf
+    println("About to return adf, mdf!!!")
+
+    return adf, mdf
 end
 
 
