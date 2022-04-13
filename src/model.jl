@@ -32,6 +32,7 @@ function uncertainty_learning_model(;
                                     low_payoff = 0.1,
                                     trial_idx = nothing,
                                     env_uncertainty = 0.0,
+                                    random_init = false,
                                     model_parameters...)
     
 
