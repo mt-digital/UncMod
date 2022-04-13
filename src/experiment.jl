@@ -29,7 +29,7 @@ function experiment(ntrials = 10;
                     low_payoff = [0.1, 0.5, 0.8],   # π_low in the paper
                     niter = 1000, 
                     steps_per_round = [1,2,5],
-                    whensteps = 10,
+                    whensteps = 100,
                     env_uncertainty = [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0]
                     # env_uncertainty = collect(0.0:0.1:1.0)
     )
@@ -49,7 +49,7 @@ function experiment(ntrials = 10;
     )
 
     adata = [(:behavior, countmap), (:social_learner, mean)]
-    mdata = [:env_uncertainty, :trial_idx, :high_payoff, :low_payoff, :nbehaviors, :steps_per_round] 
+    mdata = [:env_uncertainty, :trial_idx, :high_payoff, :low_payoff, :nbehaviors, :steps_per_round, :optimal_behavior] 
 
     models = [
         uncertainty_learning_model(;
@@ -66,10 +66,6 @@ function experiment(ntrials = 10;
         # when = (step) -> ( (step + 1) % whensteps == 0  ||  step == 0 ),
         parallel = true
     )
-
-    # resdf = innerjoin(adf,
-    #                   mdf, 
-    #                   on = [:ensemble, :step])
 
     println("About to return adf, mdf!!!")
 
