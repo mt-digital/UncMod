@@ -213,30 +213,6 @@ end
 
 
 
-# function reproduce_and_learn!(model, parent, child)
-    
-#     # Social learning frequency and vertical squeeze amount are both inherited
-#     # with mutation.
-#     child.social_learner = parent.social_learner
-
-#     if child.social_learner
-#         # 
-#         teachers = sample(collect(allagents(model)), model.nteachers, replace=false)
-#         teacher_idx = argmax(map(t -> t.net_payoff, teachers))
-#         teacher = teachers[teacher_idx]
-        
-#         child.ledger = teacher.ledger
-#         # and the count of observations of each behavior is reset to 1.
-#         child.behavior_count = repeat([1], model.nbehaviors)
-
-#     else
-#         # If child is not a social learner, ledger and counts are totally reset.
-#         child.ledger = zeros(Float64, model.nbehaviors)
-#         child.behavior_count = zeros(Int64, model.nbehaviors)
-#     end
-# end
-
-
 """
 Agents in the model 'evolve', which means they (1) produce offspring asexually 
 with frequency proportional to relative payoffs---offspring inherit parent's
