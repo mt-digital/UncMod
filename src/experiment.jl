@@ -49,7 +49,8 @@ function experiment(ntrials = 10;
     )
 
     adata = [(:behavior, countmap), (:social_learner, mean)]
-    mdata = [:env_uncertainty, :trial_idx, :high_payoff, :low_payoff, :nbehaviors, :steps_per_round] 
+    mdata = [:env_uncertainty, :trial_idx, :high_payoff, :low_payoff, 
+             :nbehaviors, :steps_per_round] 
 
     models = [
         uncertainty_learning_model(;

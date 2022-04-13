@@ -3,8 +3,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=24
 #SBATCH --mem-per-cpu=10G
-#SBATCH --time=12:00:00
-#SBATCH --output=expectedpayoffs_envunc_0.0.out
+#SBATCH --time=00:00:30
+#SBATCH --output=testfull.out
 #SBATCH --partition=serc,normal
 
 
