@@ -5,6 +5,7 @@ authors = ["mt-digital"]
 Agents = "46ada45e-f475-11e8-01d0-f70cc89e6671"
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 Cairo = "159f3aea-2a34-519c-b102-8c37f9878175"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 Comonicon = "863f3e99-da2a-4334-8734-de3dacbe5542"
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 Compose = "a81c6b42-2e10-5240-aca2-a61377ecd94b"

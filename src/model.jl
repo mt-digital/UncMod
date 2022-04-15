@@ -32,7 +32,6 @@ function uncertainty_learning_model(;
                                     low_payoff = 0.1,
                                     trial_idx = nothing,
                                     env_uncertainty = 0.0,
-                                    random_init = false,
                                     model_parameters...)
     
 
@@ -164,7 +163,8 @@ end
 """
 function model_step!(model)
 
-    for agent in allagents(model)
+    for (idx, agent) in enumerate(allagents(model))
+        prevledg = 0.0
      
         # Accumulate, record, and reset step payoff values.
         agent.net_payoff += agent.step_payoff
@@ -212,8 +212,6 @@ function model_step!(model)
 end
 
 
-
-
 """
 Agents in the model 'evolve', which means they (1) produce offspring asexually 
 with frequency proportional to relative payoffs---offspring inherit parent's
@@ -232,13 +230,14 @@ function evolve!(model::ABM)
         child.social_learner = social_learner
 
         if child.social_learner
-            # 
+             
             teachers = sample(collect(allagents(model)), 
                               model.nteachers, replace=false)
+
             teacher_idx = argmax(map(t -> t.net_payoff, teachers))
             teacher = teachers[teacher_idx]
             
-            child.ledger = teacher.ledger
+            child.ledger = copy(teacher.ledger)
             # and the count of observations of each behavior is reset to 1.
             child.behavior_count = repeat([1], model.nbehaviors)
 
@@ -265,7 +264,7 @@ function select_parents(model::ABM)
         1:N, Weights(all_net_payoffs), N; replace=true
     )
     
-    # return collect(allagents(model))[parent_idxs]
     ret = collect(allagents(model))[parent_idxs]
     return ret
+
 end
