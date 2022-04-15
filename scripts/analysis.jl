@@ -40,7 +40,7 @@ end
 
 
 function plot_soclearn_over_u_sigmoids(final_agg_df, nbehaviors; 
-                                       low_payoffs=[0.1, 0.5, 0.8],
+                                       low_payoffs=[0.1, 0.45, 0.8],
                                        figure_dir=".")
     df = final_agg_df
     
