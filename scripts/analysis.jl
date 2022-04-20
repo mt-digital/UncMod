@@ -20,31 +20,50 @@ PROJECT_THEME = Theme(
 
 
 
-
-function make_endtime_results_df(model_outputs_file)
+function make_joined_from_file(model_outputs_file::String)
     outputs = load(model_outputs_file)
     adf, mdf = map(k -> outputs[k], ["adf", "mdf"])
 
-    res = innerjoin(adf, mdf, on = [:ensemble, :step]);
+    joined = innerjoin(adf, mdf, on = [:ensemble, :step]);
+    
+    max_step = maximum(joined.step)
+    joined = joined[
+        joined.step .== max_step, 
+        [:countmap_behavior, :mean_social_learner, :env_uncertainty, 
+         :low_payoff, :nbehaviors, :steps_per_round, :optimal_behavior]
+    ]
 
-    endtimesdf = filter(r -> (r.step == 999) && (r.low_payoff == 0.25), res);
-    # first(endtimesdf, 10)
+    return joined
+end
 
-    groupbydf = groupby(res, [:env_uncertainty, :steps_per_round, :low_payoff]);
+
+function make_endtime_results_df(model_outputs_file::String)
+    joined = make_joined_from_file(model_outputs_file)
+
+    return aggregate_final_timestep(joined)
+end
+
+function make_endtime_results_df(model_outputs_files::Vector{String})
+    joined = vcat(
+        [make_joined_from_file(f) for f in model_outputs_files]...
+    )
+    
+    return aggregate_final_timestep(joined)
+end
+
+function aggregate_final_timestep(joined_df::DataFrame)
+    groupbydf = groupby(joined_df, [:env_uncertainty, :steps_per_round, :low_payoff]);
 
     cdf = combine(groupbydf, :mean_social_learner => mean)
-    cdf.steps_per_round = string.(cdf.steps_per_round);
+    cdf.steps_per_round = string.(cdf.steps_per_round)
 
     return cdf
 end
-
 
 function plot_soclearn_over_u_sigmoids(final_agg_df, nbehaviors; 
                                        low_payoffs=[0.1, 0.45, 0.8],
                                        figure_dir=".")
     df = final_agg_df
-    
-
 
     for low_payoff in low_payoffs 
         thisdf = df[df.low_payoff .== low_payoff, :]
@@ -61,10 +80,12 @@ function plot_soclearn_over_u_sigmoids(final_agg_df, nbehaviors;
                  PROJECT_THEME)
 
         draw(
-             PDF(joinpath(figure_dir, "SL_over_u_lowpayoff=$(low_payoff)_nbehaviors=$(nbehaviors).pdf"), 4.25inch, 3inch), 
+             PDF(joinpath(
+                 figure_dir, 
+                 "SL_over_u_lowpayoff=$(low_payoff)_nbehaviors=$(nbehaviors).pdf"), 
+                 4.25inch, 3inch), 
             p
         )
     end
 end
-
 
