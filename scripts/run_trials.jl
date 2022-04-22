@@ -112,7 +112,8 @@ end
 function main()
     parsed_args = parse_cli()
     # Create UUID for multiple runs with same parameters.
-    parsed_args[:id] = string(uuid4())
+    println(parsed_args)
+    parsed_args["id"] = string(uuid4())
     println("Simulation run with following arguments:")
     for (arg, val) in parsed_args
         println("    $arg => $val")
@@ -139,6 +140,7 @@ function main()
     outputfilename = replace(datadir(datadirname, outputfilename), " " => "")
 
     ntrials = pop!(parsed_args, "ntrials")
+    pop!(parsed_args, "id")
 
     pa_symbkeys = Dict(Symbol(key) => value for (key, value) in parsed_args)
 
