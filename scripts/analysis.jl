@@ -21,12 +21,15 @@ PROJECT_THEME = Theme(
 
 
 function make_joined_from_file(model_outputs_file::String)
+
     outputs = load(model_outputs_file)
+
     adf, mdf = map(k -> outputs[k], ["adf", "mdf"])
 
     joined = innerjoin(adf, mdf, on = [:ensemble, :step]);
     
     max_step = maximum(joined.step)
+
     joined = joined[
         joined.step .== max_step, 
         [:countmap_behavior, :mean_social_learner, :env_uncertainty, 
@@ -38,12 +41,15 @@ end
 
 
 function make_endtime_results_df(model_outputs_file::String)
+
     joined = make_joined_from_file(model_outputs_file)
 
     return aggregate_final_timestep(joined)
 end
 
+
 function make_endtime_results_df(model_outputs_files::Vector{String})
+
     joined = vcat(
         [make_joined_from_file(f) for f in model_outputs_files]...
     )
@@ -51,10 +57,14 @@ function make_endtime_results_df(model_outputs_files::Vector{String})
     return aggregate_final_timestep(joined)
 end
 
+
 function aggregate_final_timestep(joined_df::DataFrame)
-    groupbydf = groupby(joined_df, [:env_uncertainty, :steps_per_round, :low_payoff]);
+
+    groupbydf = groupby(joined_df, 
+                        [:env_uncertainty, :steps_per_round, :low_payoff]);
 
     cdf = combine(groupbydf, :mean_social_learner => mean)
+
     cdf.steps_per_round = string.(cdf.steps_per_round)
 
     return cdf
