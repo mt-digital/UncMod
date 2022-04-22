@@ -1,5 +1,6 @@
 using Distributed
 using Dates
+using UUIDs: uuid4
 
 using DrWatson
 quickactivate("..")
@@ -110,6 +111,8 @@ end
 
 function main()
     parsed_args = parse_cli()
+    # Create UUID for multiple runs with same parameters.
+    parsed_args[:id] = string(uuid4())
     println("Simulation run with following arguments:")
     for (arg, val) in parsed_args
         println("    $arg => $val")
