@@ -3,6 +3,7 @@ quickactivate("..")
 
 using DataFrames
 using Gadfly, Compose
+using Glob
 using Libz
 using JLD2
 
@@ -18,6 +19,15 @@ PROJECT_THEME = Theme(
     line_width = 2pt, key_label_font_size=12pt
 )
 
+
+function main_SL_result(figure_dir = "papers/UncMod/Figures", 
+                        nbehaviorsvec=[2, 4, 10]; datadir = "data/develop")
+
+    for nbehaviors in nbehaviorsvec
+        df = make_endtime_results_df("data/develop", nbehaviors)
+        plot_soclearn_over_u_sigmoids(df, nbehaviors; figure_dir = figure_dir)
+    end
+end
 
 
 function make_joined_from_file(model_outputs_file::String)
@@ -37,6 +47,25 @@ function make_joined_from_file(model_outputs_file::String)
     ]
 
     return joined
+end
+
+function make_endtime_results_df(model_outputs_dir::String, nbehaviors::Int)
+
+    if isdir(model_outputs_dir)
+
+        filepaths = glob("$model_outputs_dir/*nbehaviors=[$nbehaviors*")
+
+        joined = vcat(
+            [make_joined_from_file(f) for f in filepaths]...
+        )
+        
+        return aggregate_final_timestep(joined)
+
+    else
+
+        error("$model_outputs_dir must be a directory but is not")
+    end
+
 end
 
 
