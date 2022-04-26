@@ -51,11 +51,6 @@ function make_joined_from_file(model_outputs_file::String)
 end
 
 
-function make_endtime_counts_df(model_outputs_dir::String, nbehaviors::Int)
-
-end
-
-
 function make_endtime_results_df(model_outputs_dir::String, nbehaviors::Int)
 
     if isdir(model_outputs_dir)
@@ -110,7 +105,8 @@ using Colors
 logocolors = Colors.JULIA_LOGO_COLORS
 function gen_colors(n)
   cs = distinguishable_colors(n,
-      [logocolors.purple, colorant"deepskyblue", colorant"forestgreen", colorant"pink"], # seed colors
+      [logocolors.purple, colorant"deepskyblue", 
+       colorant"forestgreen", colorant"pink"], # seed colors
       # [colorant"#FE4365", colorant"#eca25c"],
       lchoices=Float64[58, 45, 72.5, 90],     # lightness choices
       transform=c -> deuteranopic(c, 0.1),    # color transform
