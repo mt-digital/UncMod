@@ -3,6 +3,7 @@ quickactivate("..")
 
 using DataFrames
 using Gadfly, Compose
+using Glob
 using Libz
 using JLD2
 
@@ -13,11 +14,21 @@ using Statistics
 
 
 PROJECT_THEME = Theme(
-    point_size=3.5pt, major_label_font_size = 16pt, 
-    minor_label_font_size = 14pt, key_title_font_size=13pt, 
+    major_label_font="CMU Serif",minor_label_font="CMU Serif", 
+    point_size=3.5pt, major_label_font_size = 18pt, 
+    minor_label_font_size = 14pt, key_title_font_size=14pt, 
     line_width = 2pt, key_label_font_size=12pt
 )
 
+
+function main_SL_result(figure_dir = "papers/UncMod/Figures", 
+                        nbehaviorsvec=[2, 4, 10]; datadir = "data/develop")
+
+    for nbehaviors in nbehaviorsvec
+        df = make_endtime_results_df("data/develop", nbehaviors)
+        plot_soclearn_over_u_sigmoids(df, nbehaviors; figure_dir = figure_dir)
+    end
+end
 
 
 function make_joined_from_file(model_outputs_file::String)
@@ -37,6 +48,26 @@ function make_joined_from_file(model_outputs_file::String)
     ]
 
     return joined
+end
+
+
+function make_endtime_results_df(model_outputs_dir::String, nbehaviors::Int)
+
+    if isdir(model_outputs_dir)
+
+        filepaths = glob("$model_outputs_dir/*nbehaviors=[$nbehaviors*")
+
+        joined = vcat(
+            [make_joined_from_file(f) for f in filepaths]...
+        )
+        
+        return aggregate_final_timestep(joined)
+
+    else
+
+        error("$model_outputs_dir must be a directory but is not")
+    end
+
 end
 
 
@@ -70,23 +101,46 @@ function aggregate_final_timestep(joined_df::DataFrame)
     return cdf
 end
 
+using Colors
+logocolors = Colors.JULIA_LOGO_COLORS
+function gen_colors(n)
+  cs = distinguishable_colors(n,
+      [logocolors.purple, colorant"deepskyblue", 
+       colorant"forestgreen", colorant"pink"], # seed colors
+      # [colorant"#FE4365", colorant"#eca25c"],
+      lchoices=Float64[58, 45, 72.5, 90],     # lightness choices
+      transform=c -> deuteranopic(c, 0.1),    # color transform
+      cchoices=Float64[20,40],                # chroma choices
+      hchoices=[75,51,35,120,180,210,270,310] # hue choices
+  )
+
+  convert(Vector{Color}, cs)
+end
+
+
 function plot_soclearn_over_u_sigmoids(final_agg_df, nbehaviors; 
                                        low_payoffs=[0.1, 0.45, 0.8],
                                        figure_dir=".")
     df = final_agg_df
 
     for low_payoff in low_payoffs 
+
         thisdf = df[df.low_payoff .== low_payoff, :]
+
+        if low_payoff == 0.8
+            xlabel = "Env. variability, <i>u</i>"
+        else
+            xlabel = ""
+        end
 
         p = plot(thisdf, x=:env_uncertainty, y=:mean_social_learner_mean, 
                  color = :steps_per_round, Geom.line, Geom.point,
                  Theme(line_width=1.5pt), 
-                 Guide.xlabel("Env. var, u"), 
-                 Guide.ylabel("Social learning"), 
+                 Guide.xlabel(""),
+                 Guide.ylabel(""), 
                  Guide.yticks(ticks=0.0:0.5:1.0),
-                 Guide.title("Low payoff = $low_payoff"),
-                 # Guide.colorkey(pos=[0.045w, 0.3h], title="<i>M</i>"),
-                 Guide.colorkey(title="<i>M</i>"),
+                 Scale.color_discrete(gen_colors),
+                 Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
                  PROJECT_THEME)
 
         draw(
