@@ -225,14 +225,13 @@ function evolve!(model::ABM)
     parents_social_learner_trait = map(parent -> parent.social_learner, parents)
 
     for (idx, social_learner) in enumerate(parents_social_learner_trait)
-        # reproduce_and_learn!(model, parent, agents_coll[idx])
+
         child = agents_coll[idx]
         child.social_learner = social_learner
 
         if child.social_learner
-             
-            teachers = sample(collect(allagents(model)), 
-                              model.nteachers, replace=false)
+            agentsvec = collect(allagents(model)) 
+            teachers = sample(agentsvec, model.nteachers, replace=false)
 
             teacher_idx = argmax(map(t -> t.net_payoff, teachers))
             teacher = teachers[teacher_idx]
