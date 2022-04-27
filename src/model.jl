@@ -34,7 +34,6 @@ function uncertainty_learning_model(;
                                     env_uncertainty = 0.0,
                                     model_parameters...)
     
-
     tick = 1
     optimal_behavior = 0
     expected_payoffs = []
@@ -99,6 +98,8 @@ end
     # before another.
     step_payoff::Float64 = 0.0
     net_payoff::Float64 = 0.0
+    # Hold the "previous" net payoff to track net payoffs at final time step.
+    prev_net_payoff::Float64 = 0.0
 
     # The ledger keeps track of individually-learned payoffs in each 
     # behavior-environment pair. Behaviors are rep'd by Int, which indexes
@@ -168,6 +169,7 @@ function model_step!(model)
      
         # Accumulate, record, and reset step payoff values.
         agent.net_payoff += agent.step_payoff
+        agent.prev_net_payoff = copy(agent.net_payoff)
         
         # Update ledger and behavior counts.
         prevledg = agent.ledger[agent.behavior]

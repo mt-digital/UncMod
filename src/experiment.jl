@@ -50,7 +50,7 @@ function experiment(ntrials = 10;
     )
 
     adata = [(:behavior, countmap), (:social_learner, mean), 
-             (:net_payoff, mean)]
+             (:prev_net_payoff, mean)]
 
     mdata = [:env_uncertainty, :trial_idx, :high_payoff, 
              :low_payoff, :nbehaviors, :steps_per_round, :optimal_behavior] 
