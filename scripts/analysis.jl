@@ -21,12 +21,15 @@ PROJECT_THEME = Theme(
 )
 
 
-function main_SL_result(figure_dir = "papers/UncMod/Figures", 
-                        nbehaviorsvec=[2, 4, 10]; datadir = "data/develop")
+function main_SL_result(yvar = :mean_social_learner, 
+                        figure_dir = "papers/UncMod/Figures", 
+                        nbehaviorsvec=[2, 4, 10]; 
+                        datadir = "data/develop")
 
     for nbehaviors in nbehaviorsvec
-        df = make_endtime_results_df("data/develop", nbehaviors)
-        plot_soclearn_over_u_sigmoids(df, nbehaviors; figure_dir = figure_dir)
+        df = make_endtime_results_df("data/develop", nbehaviors, yvar)
+        plot_over_u_sigmoids(df, nbehaviors, yvar; 
+                                      figure_dir = figure_dir)
     end
 end
 
@@ -44,14 +47,16 @@ function make_joined_from_file(model_outputs_file::String)
     joined = joined[
         joined.step .== max_step, 
         [:countmap_behavior, :mean_social_learner, :env_uncertainty, 
-         :low_payoff, :nbehaviors, :steps_per_round, :optimal_behavior]
+         :low_payoff, :nbehaviors, :steps_per_round, :optimal_behavior,
+         :mean_net_payoff]
     ]
 
     return joined
 end
 
 
-function make_endtime_results_df(model_outputs_dir::String, nbehaviors::Int)
+function make_endtime_results_df(model_outputs_dir::String, nbehaviors::Int, 
+                                 yvar::Symbol)
 
     if isdir(model_outputs_dir)
 
@@ -61,7 +66,7 @@ function make_endtime_results_df(model_outputs_dir::String, nbehaviors::Int)
             [make_joined_from_file(f) for f in filepaths]...
         )
         
-        return aggregate_final_timestep(joined)
+        return aggregate_final_timestep(joined, yvar)
 
     else
 
@@ -71,30 +76,31 @@ function make_endtime_results_df(model_outputs_dir::String, nbehaviors::Int)
 end
 
 
-function make_endtime_results_df(model_outputs_file::String)
+function make_endtime_results_df(model_outputs_file::String, yvar::Symbol)
 
     joined = make_joined_from_file(model_outputs_file)
 
-    return aggregate_final_timestep(joined)
+    return aggregate_final_timestep(joined, yvar)
 end
 
 
-function make_endtime_results_df(model_outputs_files::Vector{String})
+function make_endtime_results_df(model_outputs_files::Vector{String}, 
+                                 yvar::Symbol)
 
     joined = vcat(
-        [make_joined_from_file(f) for f in model_outputs_files]...
+        [make_joined_from_file(f, yvar) for f in model_outputs_files]...
     )
     
-    return aggregate_final_timestep(joined)
+    return aggregate_final_timestep(joined, yvar)
 end
 
 
-function aggregate_final_timestep(joined_df::DataFrame)
+function aggregate_final_timestep(joined_df::DataFrame, yvar::Symbol)
 
     groupbydf = groupby(joined_df, 
                         [:env_uncertainty, :steps_per_round, :low_payoff]);
 
-    cdf = combine(groupbydf, :mean_social_learner => mean)
+    cdf = combine(groupbydf, yvar => mean => yvar)
 
     cdf.steps_per_round = string.(cdf.steps_per_round)
 
@@ -118,7 +124,8 @@ function gen_colors(n)
 end
 
 
-function plot_soclearn_over_u_sigmoids(final_agg_df, nbehaviors; 
+function plot_over_u_sigmoids(final_agg_df, nbehaviors, 
+                                       yvar=:mean_social_learner; 
                                        low_payoffs=[0.1, 0.45, 0.8],
                                        figure_dir=".")
     df = final_agg_df
@@ -133,7 +140,7 @@ function plot_soclearn_over_u_sigmoids(final_agg_df, nbehaviors;
             xlabel = ""
         end
 
-        p = plot(thisdf, x=:env_uncertainty, y=:mean_social_learner_mean, 
+        p = plot(thisdf, x=:env_uncertainty, y=yvar, 
                  color = :steps_per_round, Geom.line, Geom.point,
                  Theme(line_width=1.5pt), 
                  Guide.xlabel(""),
@@ -143,10 +150,11 @@ function plot_soclearn_over_u_sigmoids(final_agg_df, nbehaviors;
                  Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
                  PROJECT_THEME)
 
+        
         draw(
              PDF(joinpath(
                  figure_dir, 
-                 "SL_over_u_lowpayoff=$(low_payoff)_nbehaviors=$(nbehaviors).pdf"), 
+                 "$(yvarstring)_over_u_lowpayoff=$(low_payoff)_nbehaviors=$(nbehaviors).pdf"), 
                  4.25inch, 3inch), 
             p
         )
