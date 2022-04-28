@@ -32,13 +32,12 @@ function main_SL_result(yvar = :mean_social_learner,
     for nbehaviors in nbehaviorsvec
         df = make_endtime_results_df("data/develop", nbehaviors, yvar)
         plot_over_u_sigmoids(df, nbehaviors, yvar; 
-                                      figure_dir = figure_dir)
+                             figure_dir = figure_dir)
     end
 end
 
 
 function make_joined_from_file(model_outputs_file::String, ensemble_offset = nothing)
-
     outputs = load(model_outputs_file)
 
     adf, mdf = map(k -> outputs[k], ["adf", "mdf"])
@@ -70,7 +69,6 @@ function make_endtime_results_df(model_outputs_dir::String, nbehaviors::Int,
 
         error("$model_outputs_dir must be a directory but is not")
     end
-
 end
 
 
@@ -107,6 +105,7 @@ function aggregate_final_timestep(joined_df::DataFrame, yvar::Symbol)
 
     return cdf
 end
+
 
 using Colors
 logocolors = Colors.JULIA_LOGO_COLORS
@@ -155,7 +154,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
         draw(
              PDF(joinpath(
                  figure_dir, 
-                 "$(yvarstring)_over_u_lowpayoff=$(low_payoff)_nbehaviors=$(nbehaviors).pdf"), 
+                 "$(yvar)_over_u_lowpayoff=$(low_payoff)_nbehaviors=$(nbehaviors).pdf"), 
                  4.25inch, 3inch), 
             p
         )
