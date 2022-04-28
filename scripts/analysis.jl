@@ -1,11 +1,14 @@
 using DrWatson
 quickactivate("..")
 
+using CategoricalArrays
 using DataFrames
-using Gadfly, Compose
+using Gadfly, Compose, LaTeXStrings
 using Glob
 using Libz
 using JLD2
+
+import StatsBase: sample
 
 # Not used here, but convenient for making notebooks.
 import Cairo, Fontconfig
@@ -34,22 +37,17 @@ function main_SL_result(yvar = :mean_social_learner,
 end
 
 
-function make_joined_from_file(model_outputs_file::String)
+function make_joined_from_file(model_outputs_file::String, ensemble_offset = nothing)
 
     outputs = load(model_outputs_file)
 
     adf, mdf = map(k -> outputs[k], ["adf", "mdf"])
 
     joined = innerjoin(adf, mdf, on = [:ensemble, :step]);
-    
-    max_step = maximum(joined.step)
 
-    joined = joined[
-        joined.step .== max_step, 
-        [:countmap_behavior, :mean_social_learner, :env_uncertainty, 
-         :low_payoff, :nbehaviors, :steps_per_round, :optimal_behavior,
-         :mean_net_payoff]
-    ]
+    if !isnothing(ensemble_offset)
+        joined.ensemble .+= ensemble_offset
+    end
 
     return joined
 end
@@ -96,6 +94,9 @@ end
 
 
 function aggregate_final_timestep(joined_df::DataFrame, yvar::Symbol)
+
+    max_step = maximum(joined_df.step)
+    joined_df = joined_df[joined_df.step .== max_step, :]
 
     groupbydf = groupby(joined_df, 
                         [:env_uncertainty, :steps_per_round, :low_payoff]);
@@ -161,3 +162,58 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
     end
 end
 
+
+
+function plot_timeseries_selection(datadir, low_payoff, nbehaviors, 
+                                   env_uncertainty, steps_per_round, ntimeseries,
+                                   yvar = :mean_social_learner,
+                                   series_per_file = 50)
+
+    # Default 50 series for each parameter setting in each file.
+    nfiles = Int(ceil(ntimeseries / series_per_file))
+    df = load_random_df(datadir, nbehaviors, nfiles)
+    df.ensemble = string.(df.ensemble)
+    
+    select_cond = (df.env_uncertainty .== env_uncertainty) .&
+                  (df.steps_per_round .== steps_per_round) .&
+                  (df.low_payoff .== low_payoff)
+
+    df = df[select_cond, :]
+
+    nsteps = length(unique(df.step))
+    nensembles = length(unique(df.ensemble))
+    ensemble_replace_indexes = 
+        categorical(vcat([repeat([i], nsteps) for i in 1:nensembles]...))
+
+    df.ensemble = ensemble_replace_indexes
+    
+    # Make plot.
+    pilow = low_payoff
+    B = nbehaviors
+    u = env_uncertainty
+    L = steps_per_round
+
+    title = 
+"""π<sub> low</sub> = $pilow; B = $B; u = $env_uncertainty; L = $L
+"""
+
+    plot(df, x=:step, y=:mean_social_learner, color=:ensemble, 
+         Geom.line(), Guide.title(title))
+end
+
+
+function load_random_df(datadir, nbehaviors, nfiles)
+
+    filepaths = sample(glob("$datadir/*nbehaviors=[$nbehaviors*"),
+                       nfiles)
+
+    dfs = []
+    ensemble_offset = 0
+    for f in filepaths
+        tempdf = make_joined_from_file(f, ensemble_offset)
+        push!(dfs, tempdf)
+        ensemble_offset = maximum(tempdf.ensemble)
+    end
+
+    return vcat(dfs...)
+end

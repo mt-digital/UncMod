@@ -54,10 +54,10 @@ function parse_cli()
             arg_type = String
             required = true
 
-        "--niter"
+        "--max_niter"
             help = "Total number of iterations per simulation"
             arg_type = Int
-            default = 1000
+            default = 5000
 
         "--ntrials"
             help = "Number of trial simulations to run for this experiment"

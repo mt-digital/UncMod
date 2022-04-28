@@ -27,8 +27,8 @@ function experiment(ntrials = 10;
                     nbehaviors = [2], #,10,20],
                     high_payoff = [0.9],  # π_high in the paper
                     low_payoff = [0.1, 0.45, 0.8],   # π_low in the paper
-                    niter = 1000, 
-                    steps_per_round = [1,2,5],
+                    max_niter = 1000, 
+                    steps_per_round = [1,2,4,8],
                     whensteps = 100,
                     env_uncertainty = [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0],
                     random_init = false
@@ -62,11 +62,23 @@ function experiment(ntrials = 10;
 
         for params in params_list
     ]
+
+    function stop_cond(model, step)
+        n_sl = sum(a.social_learner for a in allagents(model))
+
+        fixated = (n_sl == 0.0) || (n_sl == nagents)
+
+        return fixated || step > max_niter
+    end
+
+
     
     adf, mdf = ensemblerun!(
-        models, agent_step!, model_step!, niter; 
+        models, agent_step!, model_step!, stop_cond; 
         adata, mdata, 
-        when = (model, step) -> ( (step + 1) % whensteps == 0  ||  step == 0 ),
+        when = (model, step) -> ( 
+            ((step + 1) % whensteps == 0)  ||  (step == 0) || stop_cond(model, step) 
+        ),
         # when = (step) -> ( (step + 1) % whensteps == 0  ||  step == 0 ),
         parallel = true
     )
