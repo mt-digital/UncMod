@@ -79,7 +79,6 @@ function experiment(ntrials = 10;
         when = (model, step) -> ( 
             ((step + 1) % whensteps == 0)  ||  (step == 0) || stop_cond(model, step) 
         ),
-        # when = (step) -> ( (step + 1) % whensteps == 0  ||  step == 0 ),
         parallel = true
     )
 
