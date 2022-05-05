@@ -1,8 +1,7 @@
 using Dates
 using DataFrames
-
-
 using Distributed
+using JLD2
 
 # Set up multiprocessing.
 try
@@ -51,19 +50,32 @@ function expected_individual_payoff(;
 
         adf, mdf = ensemblerun!(models, agent_step!, model_step!, L;
                                 adata, mdata, 
-                                # when = 
-                                #     (model, step) -> ( 
-                                #         (step % L == 0)  ||  
-                                #         (step == 0)
-                                # ), 
+                                when = 
+                                    (model, step) -> ( 
+                                        (step % L == 0)  #||  
+                                        # (step == 0)
+                                ), 
                                 parallel = true)
 
         d[L] = innerjoin(adf, mdf, on = [:ensemble, :step])
     end
     
-    return d
+    return vcat(values(d)...)
 end
 
-function main()
-    dexpected_individual_payoff
+
+function all_expected_payoffs(; savefile = "expected_individual.jld")
+    df_B_2_4 = expected_individual_payoff()
+    df_B10 = expected_individual_payoff(;nbehaviors = [10], 
+                                         steps_per_round_vec = [1,5,10,20])
+
+    ret_df = vcat(df_B_2_4, df_B10)
+    ret_df = ret_df[ret_df.step .!== 0, 
+              [:low_payoff, :nbehaviors, :steps_per_round, :mean_prev_net_payoff]]
+                                     
+    if !isnothing(savefile)
+        @save savefile ret_df
+    end
+    
+    return ret_df
 end

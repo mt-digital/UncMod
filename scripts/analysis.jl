@@ -106,13 +106,13 @@ function aggregate_final_timestep(joined_df::DataFrame, yvar::Symbol)
     return cdf
 end
 
-
 using Colors
 logocolors = Colors.JULIA_LOGO_COLORS
+SEED_COLORS = [logocolors.purple, colorant"deepskyblue", 
+               colorant"forestgreen", colorant"pink"] 
 function gen_colors(n)
   cs = distinguishable_colors(n,
-      [logocolors.purple, colorant"deepskyblue", 
-       colorant"forestgreen", colorant"pink"], # seed colors
+      SEED_COLORS, # seed colors
       # [colorant"#FE4365", colorant"#eca25c"],
       lchoices=Float64[58, 45, 72.5, 90],     # lightness choices
       transform=c -> deuteranopic(c, 0.1),    # color transform
@@ -140,16 +140,37 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             xlabel = ""
         end
 
-        p = plot(thisdf, x=:env_uncertainty, y=yvar, 
-                 color = :steps_per_round, Geom.line, Geom.point,
-                 Theme(line_width=1.5pt), 
-                 Guide.xlabel(""),
-                 Guide.ylabel(""), 
-                 Guide.yticks(ticks=0.0:0.5:1.0),
-                 Scale.color_discrete(gen_colors),
-                 Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
-                 PROJECT_THEME)
+        if yvar != :mean_prev_net_payoff
+            p = plot(thisdf, x=:env_uncertainty, y=yvar, 
+                     color = :steps_per_round, Geom.line, Geom.point,
+                     Theme(line_width=1.5pt), 
+                     Guide.xlabel(""),
+                     Guide.ylabel(""), 
+                     Guide.yticks(ticks=0.0:0.5:1.0),
+                     Scale.color_discrete(gen_colors),
+                     Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
+                     PROJECT_THEME)
+        else
+            df = load("expected_individual.jld2")["ret_df"]
+            df = filter(r -> (r.low_payoff == low_payoff) && 
+                             (r.nbehaviors == nbehaviors), 
+                        df)
 
+            expected_individual_intercepts = 
+                sort(df, :steps_per_round)[:mean_prev_net_payoff]
+            
+            p = plot(thisdf, x=:env_uncertainty, y=yvar, 
+                     color = :steps_per_round, Geom.line, Geom.point,
+                     yintercept = expected_individual_intercepts,
+                     Geom.hline(; color=SEED_COLORS, style=:dot),
+                     Theme(line_width=1.5pt), 
+                     Guide.xlabel(""),
+                     Guide.ylabel(""), 
+                     Guide.yticks(ticks=0.0:0.5:1.0),
+                     Scale.color_discrete(gen_colors),
+                     Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
+                     PROJECT_THEME)
+        end
         
         draw(
              PDF(joinpath(
