@@ -64,7 +64,7 @@ function expected_individual_payoff(;
 end
 
 
-function all_expected_payoffs(; savefile = "expected_individual.jld")
+function all_expected_payoffs(; savefile = "expected_individual.jld2")
     df_B_2_4 = expected_individual_payoff()
     df_B10 = expected_individual_payoff(;nbehaviors = [10], 
                                          steps_per_round_vec = [1,5,10,20])

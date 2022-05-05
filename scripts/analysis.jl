@@ -16,6 +16,7 @@ import Cairo, Fontconfig
 using Statistics
 
 
+
 PROJECT_THEME = Theme(
     major_label_font="CMU Serif",minor_label_font="CMU Serif", 
     point_size=3.5pt, major_label_font_size = 18pt, 
@@ -169,18 +170,25 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                      Theme(line_width=1.5pt), 
                      Guide.xlabel(""),
                      Guide.ylabel(""), 
-                     Guide.yticks(ticks=0.0:0.5:1.0),
+                     Guide.yticks(ticks=yticks),
                      Scale.color_discrete(gen_colors),
                      Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
                      PROJECT_THEME)
         else
-            df = load("expected_individual.jld2")["ret_df"]
-            df = filter(r -> (r.low_payoff == low_payoff) && 
+            indiv_file = "expected_individual.jld2"
+            if !isfile(indiv_file)
+                println("Expected individual payoffs not found, generating now...")
+                include("expected_individual_payoff.jl")
+                # Calculates expected payoff for all parameter combos & saves.
+                all_expected_payoffs();
+            end
+            indiv_df = load(indiv_file)["ret_df"]
+            indiv_df = filter(r -> (r.low_payoff == low_payoff) && 
                              (r.nbehaviors == nbehaviors), 
-                        df)
+                        indiv_df)
 
             expected_individual_intercepts = 
-                sort(df, :steps_per_round)[:mean_prev_net_payoff]
+                sort(indiv_df, :steps_per_round).mean_prev_net_payoff
             
             p = plot(thisdf, x=:env_uncertainty, y=yvar, 
                      color = :steps_per_round, Geom.line, Geom.point,
@@ -189,7 +197,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                      Theme(line_width=1.5pt), 
                      Guide.xlabel(""),
                      Guide.ylabel(""), 
-                     Guide.yticks(ticks=0.0:0.5:1.0),
+                     Guide.yticks(ticks=yticks),
                      Scale.color_discrete(gen_colors),
                      Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
                      PROJECT_THEME)
