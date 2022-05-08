@@ -71,8 +71,6 @@ function experiment(ntrials = 10;
         return fixated || step > max_niter
     end
 
-
-    
     adf, mdf = ensemblerun!(
         models, agent_step!, model_step!, stop_cond; 
         adata, mdata, 
