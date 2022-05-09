@@ -19,11 +19,10 @@ end
 @everywhere quickactivate("..")
 @everywhere include("../src/model.jl")
 
-function expected_social_payoff(u = collect(0.0:0.1:1.0); ntrials = 10,
+function expected_social_payoff(env_uncertainty = collect(0.0:0.1:1.0); ntrials = 10,
                                 low_payoff = [0.1,0.45,0.8], nbehaviors = [2,4], 
                                 steps_per_round_vec = [1,2,4,8]
     )
-
     adata = [(:behavior, countmap), (:social_learner, mean), 
              (:prev_net_payoff, mean)]
 
@@ -34,7 +33,7 @@ function expected_social_payoff(u = collect(0.0:0.1:1.0); ntrials = 10,
     trial_idx = collect(1:ntrials)
     for steps_per_round in steps_per_round_vec
 
-        params_list = dict_list(@dict u low_payoff nbehaviors steps_per_round trial_idx)
+        params_list = dict_list(@dict env_uncertainty low_payoff nbehaviors steps_per_round trial_idx)
 
         L = steps_per_round
         println("Running $L steps per round")
@@ -52,7 +51,8 @@ function expected_social_payoff(u = collect(0.0:0.1:1.0); ntrials = 10,
         adf, mdf = ensemblerun!(models, agent_step!, model_step!, maxits;
                                 adata, mdata, 
                                 when = (_, step) -> step % 2L == 0,
-                                parallel = true)
+                                parallel = true,
+                                batch_size = max(length(models) ÷ 2nprocs(), 1))
 
         d[L] = innerjoin(adf, mdf, on = [:ensemble, :step])
     end
