@@ -78,7 +78,8 @@ function experiment(ntrials = 10;
         when = (model, step) -> ( 
             ((step + 1) % whensteps == 0)  ||  (step == 0) || stop_cond(model, step) 
         ),
-        parallel = true
+        parallel = true,
+        batch_size = max(length(models) ÷ nprocs(), 1)
     )
 
     println("About to return adf, mdf!!!")
