@@ -31,7 +31,8 @@ function experiment(ntrials = 10;
                     steps_per_round = [1,2,4,8],
                     whensteps = 100,
                     env_uncertainty = [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0],
-                    random_init = false
+                    random_init = false,
+                    tau = 0.1
                     # env_uncertainty = collect(0.0:0.1:1.0)
     )
     
