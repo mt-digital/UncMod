@@ -27,7 +27,7 @@ function uncertainty_learning_model(;
                                     steps_per_round = 5,
                                     nteachers = 5,
                                     init_social_learner_prevalence = 0.5,
-                                    τ = 0.1,
+                                    tau = 0.1,
                                     high_payoff = 0.9,
                                     low_payoff = 0.1,
                                     trial_idx = nothing,
@@ -42,7 +42,7 @@ function uncertainty_learning_model(;
 
         Dict(model_parameters),  
 
-        @dict steps_per_round tick low_payoff high_payoff nbehaviors nteachers trial_idx env_uncertainty optimal_behavior expected_payoffs τ
+        @dict steps_per_round tick low_payoff high_payoff nbehaviors nteachers trial_idx env_uncertainty optimal_behavior expected_payoffs tau
 
     )
 
@@ -132,9 +132,9 @@ function add_step_payoff!(focal_agent::LearningAgent, model)
 end
 
 
-function softmax(payoffs::AbstractVector, τ::Float64)
+function softmax(payoffs::AbstractVector, tau::Float64)
 
-    exponentiated = exp.(payoffs ./ τ)
+    exponentiated = exp.(payoffs ./ tau)
     denom = sum(exponentiated)
 
     return exponentiated ./ denom
@@ -143,7 +143,7 @@ end
 
 function select_behavior!(focal_agent, model)
     
-    weights = Weights(softmax(focal_agent.ledger, model.τ))
+    weights = Weights(softmax(focal_agent.ledger, model.tau))
     focal_agent.behavior = sample(1:model.nbehaviors, weights)
 
     return nothing

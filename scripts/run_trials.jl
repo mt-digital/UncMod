@@ -84,10 +84,15 @@ function parse_cli()
         "--high_payoff"
             help = "High payoffs to include in experiment"
             arg_type = Vector{Float64}
+
+        "--tau"
+            help = "Softmax temperature"
+            arg_type = Vector{Float64}
     end
 
     return parse_args(s)
 end
+
 
 function run_trials(ntrials = 20; 
                     outputfilename = "trials_output.jld2", 
@@ -108,6 +113,7 @@ function run_trials(ntrials = 20;
     println("Ran expected payoffs trials in $trialstime minutes")
 
 end
+
 
 function main()
     parsed_args = parse_cli()
@@ -151,6 +157,3 @@ end
 
 main()
 
-
-# run_trials(10; niter = 100_000, transledger = false, outputfilename = "softmax_novertical.jld2")
-# run_trials(10; niter = 100_000, transledger = true, outputfilename = "vertical.jld2")
