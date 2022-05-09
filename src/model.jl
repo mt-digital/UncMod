@@ -81,7 +81,8 @@ end
 
 
 """
-
+Learner agents do a behavior, perhaps are a social learner, accumulate payoffs,
+and track expected payoffs.
 """
 @with_kw mutable struct LearningAgent <: AbstractAgent
     

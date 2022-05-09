@@ -72,15 +72,12 @@ function experiment(ntrials = 10;
         return fixated || step > max_niter
     end
 
-
-    
     adf, mdf = ensemblerun!(
         models, agent_step!, model_step!, stop_cond; 
         adata, mdata, 
         when = (model, step) -> ( 
             ((step + 1) % whensteps == 0)  ||  (step == 0) || stop_cond(model, step) 
         ),
-        # when = (step) -> ( (step + 1) % whensteps == 0  ||  step == 0 ),
         parallel = true
     )
 
