@@ -19,9 +19,10 @@ end
 @everywhere quickactivate("..")
 @everywhere include("../src/model.jl")
 
-function expected_social_payoff(env_uncertainty = collect(0.0:0.1:1.0); ntrials = 10,
+function expected_social_payoff(;env_uncertainty = collect(0.0:0.1:1.0), ntrials = 10,
                                 low_payoff = [0.1,0.45,0.8], nbehaviors = [2,4], 
-                                steps_per_round_vec = [1,2,4,8]
+                                steps_per_round = [1,2,4,8], tau = 0.1,
+                                high_payoff = [0.9]
     )
     adata = [(:behavior, countmap), (:social_learner, mean), 
              (:prev_net_payoff, mean)]
@@ -31,28 +32,32 @@ function expected_social_payoff(env_uncertainty = collect(0.0:0.1:1.0); ntrials 
     
     d = Dict{Int, DataFrame}()
     trial_idx = collect(1:ntrials)
-    for steps_per_round in steps_per_round_vec
+    for L in steps_per_round
 
-        params_list = dict_list(@dict env_uncertainty low_payoff nbehaviors steps_per_round trial_idx)
+        params_list = dict_list(
+            @dict env_uncertainty low_payoff nbehaviors steps_per_round trial_idx tau high_payoff
+        )
 
-        L = steps_per_round
         println("Running $L steps per round")
 
         models = [
             uncertainty_learning_model(
-                nagents = 100; init_social_learner_prevalence = 1.0, 
+                nagents = 100; 
+                init_social_learner_prevalence = 1.0, 
                 params...
             )
             for params in params_list
         ]
 
         maxits = L * 100  # run 100 generations. Payoffs should stabilize by then.
-
+        batch_size = max(length(models) ÷ 2nprocs(), 1)
+        println(batch_size)
         adf, mdf = ensemblerun!(models, agent_step!, model_step!, maxits;
                                 adata, mdata, 
-                                when = (_, step) -> step % 2L == 0,
+                                when = (_, step) -> step % 5L == 0,
                                 parallel = true,
-                                batch_size = max(length(models) ÷ 2nprocs(), 1))
+                                batch_size
+                               )
 
         d[L] = innerjoin(adf, mdf, on = [:ensemble, :step])
     end
