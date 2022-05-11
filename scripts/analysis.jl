@@ -2,6 +2,7 @@ using DrWatson
 quickactivate("..")
 
 using CategoricalArrays
+
 using DataFrames
 using Gadfly, Compose, LaTeXStrings
 using Glob
@@ -255,6 +256,51 @@ function plot_timeseries_selection(datadir, low_payoff, nbehaviors,
 end
 
 
+function load_expected_social_dfs(nbehaviors::Int; datadir = "data/expected_social", 
+                                    jld2_key = "expected_social_joined_df"
+    )
+
+    d = Dict{Int, DataFrame}()
+
+    if nbehaviors == 10
+        filepaths_10 = glob("$datadir/*nbehaviors=[[]10*") 
+        dfs = Vector{DataFrame}()
+        ensemble_offset = 0
+        
+        for f in filepaths_10
+
+            tempdf = load(f)[jld2_key]
+            tempdf.ensemble .+= ensemble_offset
+            ensemble_offset = maximum(tempdf.ensemble)
+
+            push!(dfs, tempdf)
+        end
+
+        df10 = vcat(dfs...) 
+        
+        return df10
+        
+    else
+        dfs = Vector{DataFrame}()
+        ensemble_offset = 0
+
+        filepaths_2_4 = glob("$datadir/*nbehaviors=[[]2,4[]]*")
+        for f in filepaths_2_4
+
+            tempdf = load(f)[jld2_key]
+            tempdf.ensemble .+= ensemble_offset
+            ensemble_offset = maximum(tempdf.ensemble)
+
+            push!(dfs, tempdf)
+        end
+
+        df_2_4 = vcat(dfs...)
+        
+        return df_2_4
+    end
+end
+                            
+
 function load_random_df(datadir::String, nbehaviors::Int, nfiles::Int)
 
     filepaths = sample(glob("$datadir/*nbehaviors=[$nbehaviors*"),
@@ -271,6 +317,7 @@ function load_random_df(datadir::String, nbehaviors::Int, nfiles::Int)
 
     return vcat(dfs...)
 end
+
 
 function load_random_df(datadir::String, nfiles::Int, 
                         nbehaviors::Vector{Int}=[2,4,10])

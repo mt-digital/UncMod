@@ -54,7 +54,7 @@ function expected_social_payoff(;env_uncertainty = collect(0.0:0.1:1.0), ntrials
         println(batch_size)
         adf, mdf = ensemblerun!(models, agent_step!, model_step!, maxits;
                                 adata, mdata, 
-                                when = (_, step) -> step % 5L == 0,
+                                when = (_, step) -> step % L == 0,
                                 parallel = true,
                                 batch_size
                                )
