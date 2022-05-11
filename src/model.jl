@@ -54,7 +54,7 @@ function uncertainty_learning_model(;
     model.expected_payoffs = repeat([low_payoff], nbehaviors)
     model.expected_payoffs[model.optimal_behavior] = high_payoff
     
-    for ii in 1:nagents
+    for ii in collect(1:nagents)
 
         if rand(model.rng) < init_social_learner_prevalence
             social_learner = true
@@ -263,7 +263,7 @@ function select_parents(model::ABM)
     N = nagents(model)
 
     parent_idxs = sample(
-        1:N, Weights(all_net_payoffs), N; replace=true
+        collect(1:N), Weights(all_net_payoffs), N; replace=true
     )
     
     ret = collect(allagents(model))[parent_idxs]
