@@ -16,6 +16,7 @@ import Cairo, Fontconfig
 
 using Statistics
 
+include("expected_homogenous_payoff.jl")
 
 
 PROJECT_THEME = Theme(
@@ -168,7 +169,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
         if yvar != :mean_prev_net_payoff
             p = plot(thisdf, x=:env_uncertainty, y=yvar, 
                      color = :steps_per_round, Geom.line, Geom.point,
-                     Theme(line_width=1.5pt), 
+                     Theme(line_width=5pt), 
                      Guide.xlabel(""),
                      Guide.ylabel(""), 
                      Guide.yticks(ticks=yticks),
@@ -176,26 +177,45 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                      Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
                      PROJECT_THEME)
         else
+            # Prepare lines for expected individual learner payoffs, ⟨π_I⟩.
             indiv_file = "expected_individual.jld2"
             if !isfile(indiv_file)
                 println("Expected individual payoffs not found, generating now...")
-                include("expected_individual_payoff.jl")
                 # Calculates expected payoff for all parameter combos & saves.
-                all_expected_payoffs();
+                all_expected_individual_payoffs();
             end
-            indiv_df = load(indiv_file)["ret_df"]
+            indiv_df = load(indiv_file)["df"]
             indiv_df = filter(r -> (r.low_payoff == low_payoff) && 
-                             (r.nbehaviors == nbehaviors), 
-                        indiv_df)
+                                   (r.nbehaviors == nbehaviors), 
+                              indiv_df)
 
             expected_individual_intercepts = 
                 sort(indiv_df, :steps_per_round).mean_prev_net_payoff
-            
-            p = plot(thisdf, x=:env_uncertainty, y=yvar, 
-                     color = :steps_per_round, Geom.line, Geom.point,
-                     yintercept = expected_individual_intercepts,
-                     Geom.hline(; color=SEED_COLORS, style=:dot),
-                     Theme(line_width=1.5pt), 
+
+            # Prepare lines for expected individual learner payoffs, ⟨πₛ⟩.
+            soc_file = "expected_social_B=$nbehaviors.jld2"
+            if !isfile(soc_file)
+                println("Expected social payoffs not found, generating now...")
+                all_expected_social_payoffs()
+            end
+
+            println("Loading...")
+            soc_aggdf = load(soc_file)["aggdf"]
+            filter!(r -> (r.low_payoff == low_payoff), soc_aggdf)
+                                 
+            p = plot(
+                     layer(thisdf, x=:env_uncertainty, y=yvar, 
+                           color = :steps_per_round, Geom.line, Geom.point),
+                           yintercept = expected_individual_intercepts,
+                           Geom.hline(; color=SEED_COLORS, style=:ldash, size=2.5pt),
+                     layer(soc_aggdf, x=:env_uncertainty, y=yvar, Geom.line,
+                           Geom.point,
+                           color = :steps_per_round, 
+                           style(point_shapes=[diamond],
+                                 point_size=4.5pt,
+                                 line_width=2.5pt, 
+                                 line_style=[:dashdot])), 
+                     Theme(line_width=5pt), 
                      Guide.xlabel(""),
                      Guide.ylabel(""), 
                      Guide.yticks(ticks=yticks),
@@ -255,51 +275,6 @@ function plot_timeseries_selection(datadir, low_payoff, nbehaviors,
          Geom.line(), Guide.title(title))
 end
 
-
-function load_expected_social_dfs(nbehaviors::Int; datadir = "data/expected_social", 
-                                    jld2_key = "expected_social_joined_df"
-    )
-
-    d = Dict{Int, DataFrame}()
-
-    if nbehaviors == 10
-        filepaths_10 = glob("$datadir/*nbehaviors=[[]10*") 
-        dfs = Vector{DataFrame}()
-        ensemble_offset = 0
-        
-        for f in filepaths_10
-
-            tempdf = load(f)[jld2_key]
-            tempdf.ensemble .+= ensemble_offset
-            ensemble_offset = maximum(tempdf.ensemble)
-
-            push!(dfs, tempdf)
-        end
-
-        df10 = vcat(dfs...) 
-        
-        return df10
-        
-    else
-        dfs = Vector{DataFrame}()
-        ensemble_offset = 0
-
-        filepaths_2_4 = glob("$datadir/*nbehaviors=[[]2,4[]]*")
-        for f in filepaths_2_4
-
-            tempdf = load(f)[jld2_key]
-            tempdf.ensemble .+= ensemble_offset
-            ensemble_offset = maximum(tempdf.ensemble)
-
-            push!(dfs, tempdf)
-        end
-
-        df_2_4 = vcat(dfs...)
-        
-        return df_2_4
-    end
-end
-                            
 
 function load_random_df(datadir::String, nbehaviors::Int, nfiles::Int)
 
