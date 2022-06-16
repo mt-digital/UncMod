@@ -21,10 +21,27 @@ include("expected_homogenous_payoff.jl")
 
 PROJECT_THEME = Theme(
     major_label_font="CMU Serif",minor_label_font="CMU Serif", 
-    point_size=3.5pt, major_label_font_size = 18pt, 
+    point_size=5.5pt, major_label_font_size = 18pt, 
     minor_label_font_size = 14pt, key_title_font_size=14pt, 
-    line_width = 2pt, key_label_font_size=12pt
+    line_width = 3.5pt, key_label_font_size=12pt
 )
+
+function tau_sensitivity_results(yvars = 
+                                [:mean_social_learner, :mean_prev_net_payoff, 
+                                 :step], 
+                                taus = ["0.01", "1.0"];
+                                figuredir = "papers/UncMod/Figures", 
+                                nbehaviorsvec=[2, 4, 10], 
+                                nfiles = 10)  # New parallel runs easily do 100 trials per file
+    for tau in taus
+        for yvar in yvars
+            datadir = "data/tau_sensitivity/tau$tau"
+            main_SL_result(yvar; figuredir = "$figuredir/sensitivity_tau=$tau", 
+                           datadir, nfiles)
+        end
+    end
+end
+                                 
 
 
 function main_SL_result(yvar = :mean_social_learner; 
@@ -107,9 +124,6 @@ function aggregate_final_timestep(joined_df::DataFrame, yvar::Symbol)
     # Match ensemble and step, left join w combined on left,
     # so only rows from last time step remain.
     endstepdf = leftjoin(cb, joined_df; on = [:ensemble, :step])
-    # println(first(endstepdf, 20))
-    # max_step = maximum(joined_df.step)
-    # joined_df = joined_df[joined_df.step .== max_step, :]
 
     groupbydf = groupby(endstepdf, 
                         [:env_uncertainty, :steps_per_round, :low_payoff]);
@@ -128,11 +142,23 @@ SEED_COLORS = [logocolors.purple, colorant"deepskyblue",
 function gen_colors(n)
   cs = distinguishable_colors(n,
       SEED_COLORS, # seed colors
-      # [colorant"#FE4365", colorant"#eca25c"],
       lchoices=Float64[58, 45, 72.5, 90],     # lightness choices
       transform=c -> deuteranopic(c, 0.1),    # color transform
       cchoices=Float64[20,40],                # chroma choices
       hchoices=[75,51,35,120,180,210,270,310] # hue choices
+  )
+
+  convert(Vector{Color}, cs)
+end
+
+function gen_two_colors(n)
+  cs = distinguishable_colors(n,
+      [SEED_COLORS[1], SEED_COLORS[4]], # seed colors
+      # [colorant"#FE4365", colorant"#eca25c"],
+      lchoices=Float64[58, 45],     # lightness choices
+      transform=c -> deuteranopic(c, 0.1),    # color transform
+      cchoices=Float64[20,40],                # chroma choices
+      hchoices=[75,51] # hue choices
   )
 
   convert(Vector{Color}, cs)
@@ -145,6 +171,14 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                                        figuredir=".")
     df = final_agg_df
 
+    if yvar ∈ [:mean_prev_net_payoff, :step]
+        if nbehaviors ∈ [2, 4]
+            filter!(r -> r.steps_per_round ∈ [1, 8], df)
+        else
+            filter!(r -> r.steps_per_round ∈ [1, 20], df)
+        end
+    end
+
     for low_payoff in low_payoffs 
 
         thisdf = df[df.low_payoff .== low_payoff, :]
@@ -154,29 +188,35 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
         else
             xlabel = ""
         end
+
         if yvar == :mean_social_learner
             yticks = 0:.5:1
-        elseif yvar == :mean_prev_net_payoff
-            if nbehaviors == 10
-                yticks = 0:2:20
-            else
-                yticks = 0:1:8
-            end
-        elseif yvar == :step
-            yticks = 0:500:(500 * ceil(maximum(thisdf[!, yvar]) / 500))
         end
 
         if yvar != :mean_prev_net_payoff
+
+            if yvar == :step
+                for r in eachrow(thisdf)
+                    r[yvar] /= convert(Float64, r.steps_per_round)
+                end
+                ticloc = 20
+                yticks = 0:ticloc:(ticloc * ceil(maximum(thisdf[!, yvar]) / ticloc))
+            end
+            colorgenfn = yvar == :step ? gen_two_colors : gen_colors 
             p = plot(thisdf, x=:env_uncertainty, y=yvar, 
                      color = :steps_per_round, Geom.line, Geom.point,
-                     Theme(line_width=5pt), 
                      Guide.xlabel(""),
                      Guide.ylabel(""), 
                      Guide.yticks(ticks=yticks),
-                     Scale.color_discrete(gen_colors),
+                     Scale.color_discrete(colorgenfn),
                      Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
                      PROJECT_THEME)
         else
+            for r in eachrow(thisdf)
+                r.mean_prev_net_payoff /= convert(Float64, r.steps_per_round)
+            end
+            yticks = 0.2:0.2:1
+
             # Prepare lines for expected individual learner payoffs, ⟨π_I⟩.
             indiv_file = "expected_individual.jld2"
             if !isfile(indiv_file)
@@ -185,9 +225,19 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                 all_expected_individual_payoffs();
             end
             indiv_df = load(indiv_file)["df"]
+            if nbehaviors ∈ [2, 4]
+                spr = [1, 8]
+            else
+                spr = [1, 20]
+            end
             indiv_df = filter(r -> (r.low_payoff == low_payoff) && 
-                                   (r.nbehaviors == nbehaviors), 
+                                   (r.nbehaviors == nbehaviors) &&
+                                   (r.steps_per_round ∈ spr), 
                               indiv_df)
+            
+            for r in eachrow(indiv_df)
+                r.mean_prev_net_payoff /= r.steps_per_round
+            end
 
             expected_individual_intercepts = 
                 sort(indiv_df, :steps_per_round).mean_prev_net_payoff
@@ -201,13 +251,19 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
 
             println("Loading...")
             soc_aggdf = load(soc_file)["aggdf"]
-            filter!(r -> (r.low_payoff == low_payoff), soc_aggdf)
-                                 
+            filter!(r -> (r.low_payoff == low_payoff) &&
+                         (r.steps_per_round ∈ spr),
+                    soc_aggdf)
+
+            for r in eachrow(soc_aggdf)
+                r.mean_prev_net_payoff /= convert(Float64, r.steps_per_round)
+            end
+
             p = plot(
                      layer(thisdf, x=:env_uncertainty, y=yvar, 
                            color = :steps_per_round, Geom.line, Geom.point),
                            yintercept = expected_individual_intercepts,
-                           Geom.hline(; color=SEED_COLORS, style=:ldash, size=2.5pt),
+                           Geom.hline(; color=[SEED_COLORS[1], SEED_COLORS[4]], style=:ldash, size=2.5pt),
                      layer(soc_aggdf, x=:env_uncertainty, y=yvar, Geom.line,
                            Geom.point,
                            color = :steps_per_round, 
@@ -215,11 +271,10 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                                  point_size=4.5pt,
                                  line_width=2.5pt, 
                                  line_style=[:dashdot])), 
-                     Theme(line_width=5pt), 
                      Guide.xlabel(""),
                      Guide.ylabel(""), 
                      Guide.yticks(ticks=yticks),
-                     Scale.color_discrete(gen_colors),
+                     Scale.color_discrete(gen_two_colors),
                      Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
                      PROJECT_THEME)
         end
@@ -257,8 +312,6 @@ function plot_timeseries_selection(datadir, low_payoff, nbehaviors,
     ensemble_replace_indexes = 
         string.(vcat([repeat([i], nsteps) for i in 1:nensembles]...))
 
-    println(length(df.ensemble))
-    println(length(ensemble_replace_indexes))
     df.ensemble = ensemble_replace_indexes
     
     # Make plot.
@@ -277,9 +330,10 @@ end
 
 
 function load_random_df(datadir::String, nbehaviors::Int, nfiles::Int)
-
-    filepaths = sample(glob("$datadir/*nbehaviors=[$nbehaviors*"),
-                       nfiles)
+    globstring = "$datadir/*nbehaviors=[$nbehaviors*"
+    println("Loading data from files matching $globstring")
+    globlist = glob(globstring)
+    filepaths = sample(globlist, nfiles)
 
     dfs = []
     ensemble_offset = 0
