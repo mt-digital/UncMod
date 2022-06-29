@@ -41,7 +41,6 @@ function tau_sensitivity_results(yvars =
         end
     end
 end
-                                 
 
 
 function main_SL_result(yvar = :mean_social_learner; 
