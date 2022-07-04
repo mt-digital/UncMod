@@ -26,6 +26,47 @@ PROJECT_THEME = Theme(
     line_width = 3.5pt, key_label_font_size=12pt
 )
 
+function N_sensitivity_results(yvars = 
+                                [:mean_social_learner, :mean_prev_net_payoff, 
+                                 :step], 
+                                Ns = ["50", "200", "1000"];
+                                figuredir = "papers/UncMod/Figures", 
+                                nbehaviorsvec=[2, 4, 10], 
+                                nfiles = 10)  # New parallel runs easily do 100 trials per file
+    for N in Ns
+        for yvar in yvars
+            # Currently have to manually separate files from N_sensitivity dir
+            # from server into N=$N directories locally.
+            # TODO Add code to check if these are available and create and automatically
+            # separate if they are. This is done for compat with main_SL_result.
+            datadir = "data/nagents_sensitivity/nagents=$N"
+            main_SL_result(yvar; figuredir = "$figuredir/nagents=$N", 
+                           datadir, nfiles)
+        end
+    end
+end
+
+
+function nteachers_sensitivity_results(yvars = 
+                                [:mean_social_learner, :mean_prev_net_payoff, 
+                                 :step], 
+                                nteachers_vals = ["2", "10", "20"];
+                                figuredir = "papers/UncMod/Figures", 
+                                nbehaviorsvec=[2, 4, 10], 
+                                nfiles = 10)  # New parallel runs easily do 100 trials per file
+    for nteachers in nteachers_vals
+        for yvar in yvars
+            # Currently have to manually separate files from N_sensitivity dir
+            # from server into N=$N directories locally.
+            # TODO Add code to check if these are available and create and automatically
+            # separate if they are. This is done for compat with main_SL_result.
+            datadir = "data/nteachers_sensitivity/nteachers=$nteachers"
+            main_SL_result(yvar; figuredir = "$figuredir/nteachers=$nteachers", 
+                           datadir, nfiles)
+        end
+    end
+end
+
 function tau_sensitivity_results(yvars = 
                                 [:mean_social_learner, :mean_prev_net_payoff, 
                                  :step], 
@@ -35,6 +76,10 @@ function tau_sensitivity_results(yvars =
                                 nfiles = 10)  # New parallel runs easily do 100 trials per file
     for tau in taus
         for yvar in yvars
+            # Currently have to manually separate files from tau_sensitivity dir
+            # from server into tau$tau directories locally.
+            # TODO Add code to check if these are available and create and automatically
+            # separate if they are. This is done for compat with main_SL_result.
             datadir = "data/tau_sensitivity/tau$tau"
             main_SL_result(yvar; figuredir = "$figuredir/sensitivity_tau=$tau", 
                            datadir, nfiles)
