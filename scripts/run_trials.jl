@@ -88,6 +88,27 @@ function parse_cli()
         "--tau"
             help = "Softmax temperature"
             arg_type = Vector{Float64}
+            default = [0.1]
+
+        "--nagents"
+            help = "Population size"
+            arg_type = Int
+            default = 100
+
+        "--nteachers"
+            help = "Number of prospective teachers"
+            arg_type = Int
+            default = 5
+
+        "--init_social_learner_prevalence"
+            help = "Probability that an agent at simulation init is a social learner"
+            arg_type = Float64
+            default = 0.5
+
+        "--stop_cond"
+            help = "Whether to use default or all_social_learners stopcond"
+            arg_type = Symbol
+            default = :default
     end
 
     return parse_args(s)
@@ -133,16 +154,18 @@ function main()
     # Make a copy of parsed args for use in naming output.
     nameargs = copy(parsed_args)
 
-    # rmkeys = []
+    rmkeys = ["env_uncertainty", "low_payoff"]
     # if experiment == "expected-payoff"
     #     rmkeys = [rmkeys..., "low_payoff", "high_payoff"]
     # end
 
-    # for rmkey in rmkeys
-    #     delete!(nameargs, rmkey)
-    # end
+    for rmkey in rmkeys
+        delete!(nameargs, rmkey)
+    end
 
-    outputfilename = savename(parsed_args, "jld2")
+    outputfilename = savename(nameargs, "jld2")
+    #
+    # Not sure why next line is necessary...
     outputfilename = replace(datadir(datadirname, outputfilename), " " => "")
 
     ntrials = pop!(parsed_args, "ntrials")
@@ -155,5 +178,7 @@ function main()
                pa_symbkeys...)
 end
 
+
 main()
+
 

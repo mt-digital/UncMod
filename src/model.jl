@@ -165,7 +165,7 @@ end
 """
 function model_step!(model)
 
-    for (idx, agent) in enumerate(allagents(model))
+    for (idx, agent) in enumerate(collect(allagents(model)))
         prevledg = 0.0
      
         # Accumulate, record, and reset step payoff values.

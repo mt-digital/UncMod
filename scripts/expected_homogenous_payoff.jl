@@ -42,7 +42,7 @@ function expected_social_payoff(;env_uncertainty = collect(0.0:0.1:1.0), ntrials
 
         models = [
             uncertainty_learning_model(
-                nagents = 100; 
+                nagents = 1000; 
                 init_social_learner_prevalence = 1.0, 
                 params...
             )
@@ -50,11 +50,11 @@ function expected_social_payoff(;env_uncertainty = collect(0.0:0.1:1.0), ntrials
         ]
 
         maxits = L * 100  # run 100 generations. Payoffs should stabilize by then.
-        batch_size = max(length(models) ÷ 2nprocs(), 1)
+        batch_size = max(length(models) ÷ nprocs(), 1)
         println(batch_size)
         adf, mdf = ensemblerun!(models, agent_step!, model_step!, maxits;
                                 adata, mdata, 
-                                when = (_, step) -> step % 5L == 0,
+                                when = (_, step) -> step % L == 0,
                                 parallel = true,
                                 batch_size
                                )
