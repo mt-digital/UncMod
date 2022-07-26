@@ -22,17 +22,19 @@ include("expected_homogenous_payoff.jl")
 PROJECT_THEME = Theme(
     major_label_font="CMU Serif",minor_label_font="CMU Serif", 
     point_size=5.5pt, major_label_font_size = 18pt, 
-    minor_label_font_size = 14pt, key_title_font_size=14pt, 
-    line_width = 3.5pt, key_label_font_size=12pt
+    minor_label_font_size = 18pt, key_title_font_size=18pt, 
+    line_width = 3.5pt, key_label_font_size=14pt
 )
 
 function N_sensitivity_results(yvars = 
                                 [:mean_social_learner, :mean_prev_net_payoff, 
-                                 :step], 
-                                Ns = ["50", "200", "1000"];
+                                 :step]; 
+                                Ns = ["50", "200", "1000"],
                                 figuredir = "papers/UncMod/Figures", 
                                 nbehaviorsvec=[2, 4, 10], 
-                                nfiles = 10)  # New parallel runs easily do 100 trials per file
+                                ) 
+    default_nfiles = 10
+
     for N in Ns
         for yvar in yvars
             # Currently have to manually separate files from N_sensitivity dir
@@ -40,6 +42,15 @@ function N_sensitivity_results(yvars =
             # TODO Add code to check if these are available and create and automatically
             # separate if they are. This is done for compat with main_SL_result.
             datadir = "data/nagents_sensitivity/nagents=$N"
+
+            if N == "1000"
+                nfiles = 100
+            else
+                nfiles = default_nfiles
+            end
+
+            println("Using $nfiles files for N=$N")
+
             main_SL_result(yvar; figuredir = "$figuredir/nagents=$N", 
                            datadir, nfiles)
         end
