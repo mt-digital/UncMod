@@ -64,15 +64,16 @@ function nteachers_sensitivity_results(yvars =
                                 nteachers_vals = ["2", "10", "20"];
                                 figuredir = "papers/UncMod/Figures", 
                                 nbehaviorsvec=[2, 4, 10], 
-                                nfiles = 10)  # New parallel runs easily do 100 trials per file
+                                nfiles = 100)  # New parallel runs easily do 100 trials per file
     for nteachers in nteachers_vals
         for yvar in yvars
             # Currently have to manually separate files from N_sensitivity dir
             # from server into N=$N directories locally.
             # TODO Add code to check if these are available and create and automatically
             # separate if they are. This is done for compat with main_SL_result.
-            datadir = "data/nteachers_sensitivity/nteachers=$nteachers"
-            main_SL_result(yvar; figuredir = "$figuredir/nteachers=$nteachers", 
+            # datadir = "data/nteachers_sensitivity/nteachers=$nteachers"
+            datadir = "data/nteachers_sensitivity/nteachers$nteachers"
+            main_SL_result(yvar; figuredir = "$figuredir/nteachers$nteachers", 
                            datadir, nfiles)
         end
     end
@@ -91,7 +92,7 @@ function tau_sensitivity_results(yvars =
             # from server into tau$tau directories locally.
             # TODO Add code to check if these are available and create and automatically
             # separate if they are. This is done for compat with main_SL_result.
-            datadir = "data/tau_sensitivity/tau$tau"
+            datadir = "data/tau_sensitivity/$tau"
             main_SL_result(yvar; figuredir = "$figuredir/sensitivity_tau=$tau", 
                            datadir, nfiles)
         end
@@ -250,12 +251,12 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             filter!(r -> r.steps_per_round ∈ [1, 20], socdf)
         end
         aggsocdf = aggregate_final_timestep(socdf, yvar; socdf = true)
+        this_aggsocdf = aggsocdf[aggsocdf.low_payoff .== low_payoff, :]
     end
 
     for low_payoff in low_payoffs 
 
         thisdf = df[df.low_payoff .== low_payoff, :]
-        this_aggsocdf = aggsocdf[aggsocdf.low_payoff .== low_payoff, :]
 
         if low_payoff == 0.8
             xlabel = "Env. variability, <i>u</i>"
