@@ -65,15 +65,16 @@ function nteachers_sensitivity_results(yvars =
                                 nteachers_vals = ["2", "10", "20"];
                                 figuredir = "papers/UncMod/Figures", 
                                 nbehaviorsvec=[2, 4, 10], 
-                                nfiles = 10)  # New parallel runs easily do 100 trials per file
+                                nfiles = 100)  # New parallel runs easily do 100 trials per file
     for nteachers in nteachers_vals
         for yvar in yvars
             # Currently have to manually separate files from N_sensitivity dir
             # from server into N=$N directories locally.
             # TODO Add code to check if these are available and create and automatically
             # separate if they are. This is done for compat with main_SL_result.
-            datadir = "data/nteachers_sensitivity/nteachers=$nteachers"
-            main_SL_result(yvar; figuredir = "$figuredir/nteachers=$nteachers", 
+            # datadir = "data/nteachers_sensitivity/nteachers=$nteachers"
+            datadir = "data/nteachers_sensitivity/nteachers$nteachers"
+            main_SL_result(yvar; figuredir = "$figuredir/nteachers$nteachers", 
                            datadir, nfiles)
         end
     end
@@ -92,7 +93,7 @@ function tau_sensitivity_results(yvars =
             # from server into tau$tau directories locally.
             # TODO Add code to check if these are available and create and automatically
             # separate if they are. This is done for compat with main_SL_result.
-            datadir = "data/tau_sensitivity/tau$tau"
+            datadir = "data/tau_sensitivity/$tau"
             main_SL_result(yvar; figuredir = "$figuredir/sensitivity_tau=$tau", 
                            datadir, nfiles)
         end
@@ -171,10 +172,17 @@ function make_endtime_results_df(model_outputs_files::Vector{String},
 end
 
 
-function aggregate_final_timestep(joined_df::DataFrame, yvar::Symbol)
+function aggregate_final_timestep(joined_df::DataFrame, yvar::Symbol; 
+                                  socdf = false, socdf_lifespan = 1, 
+                                  generations = 1000)
+    if socdf
+        # Hack to deal with social learning dataframe problems.
+        filter!(r -> r.step == socdf_lifespan * generations - 1, joined_df)
+    end
 
     # Groupby ensemble, find maximum time step in each ensemble.
     gb = groupby(joined_df, :ensemble)
+
     cb = combine(gb, :step => maximum => :step)
 
     # Match ensemble and step, left join w combined on left,
@@ -235,6 +243,18 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
         end
     end
 
+    if yvar == :mean_prev_net_payoff
+        nfiles = 100
+        socdf = load_random_df("data/sl_expected", nbehaviors, nfiles)
+        if nbehaviors ∈ [2, 4]
+            filter!(r -> r.steps_per_round ∈ [1, 8], socdf)
+        else
+            filter!(r -> r.steps_per_round ∈ [1, 20], socdf)
+        end
+        aggsocdf = aggregate_final_timestep(socdf, yvar; socdf = true)
+        this_aggsocdf = aggsocdf[aggsocdf.low_payoff .== low_payoff, :]
+    end
+
     for low_payoff in low_payoffs 
 
         thisdf = df[df.low_payoff .== low_payoff, :]
@@ -271,7 +291,6 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             for r in eachrow(thisdf)
                 r.mean_prev_net_payoff /= convert(Float64, r.steps_per_round)
             end
-            yticks = 0.2:0.2:1
 
             # Prepare lines for expected individual learner payoffs, ⟨π_I⟩.
             indiv_file = "expected_individual.jld2"
@@ -280,7 +299,8 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                 # Calculates expected payoff for all parameter combos & saves.
                 all_expected_individual_payoffs();
             end
-            indiv_df = load(indiv_file)["df"]
+            # indiv_df = load(indiv_file)["df"]
+            indiv_df = load(indiv_file)["ret_df"]
             if nbehaviors ∈ [2, 4]
                 spr = [1, 8]
             else
@@ -298,29 +318,33 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             expected_individual_intercepts = 
                 sort(indiv_df, :steps_per_round).mean_prev_net_payoff
 
-            # Prepare lines for expected individual learner payoffs, ⟨πₛ⟩.
-            soc_file = "expected_social_B=$nbehaviors.jld2"
-            if !isfile(soc_file)
-                println("Expected social payoffs not found, generating now...")
-                all_expected_social_payoffs()
-            end
+            # Prepare lines for expected social learner payoffs, ⟨πₛ⟩.
+            # nfiles = 100 
+            # df = load_random_df("data/sl_expected", nbehaviors, 10)
+            # this_aggsocdf = aggregate_final_timestep(df, yvar)
 
-            println("Loading...")
-            soc_aggdf = load(soc_file)["aggdf"]
+            # println("Loading...")
+            # this_aggsocdf = load(soc_file)["aggdf"]
+
+            # this_aggsocdf = make_endtime_results_df("data/sl_expected", nbehaviors,
             filter!(r -> (r.low_payoff == low_payoff) &&
                          (r.steps_per_round ∈ spr),
-                    soc_aggdf)
+                    this_aggsocdf)
 
-            for r in eachrow(soc_aggdf)
+            for r in eachrow(this_aggsocdf)
                 r.mean_prev_net_payoff /= convert(Float64, r.steps_per_round)
             end
 
+            yticks = 0.0:0.2:1
             p = plot(
                      layer(thisdf, x=:env_uncertainty, y=yvar, 
                            color = :steps_per_round, Geom.line, Geom.point),
-                           yintercept = expected_individual_intercepts,
-                           Geom.hline(; color=[SEED_COLORS[1], SEED_COLORS[4]], style=:ldash, size=2.5pt),
-                     layer(soc_aggdf, x=:env_uncertainty, y=yvar, Geom.line,
+                     yintercept = expected_individual_intercepts,
+                     Geom.hline(; 
+                                color=[SEED_COLORS[1], 
+                                       SEED_COLORS[4]], 
+                                style=:ldash, size=2.5pt),
+                     layer(this_aggsocdf, x=:env_uncertainty, y=yvar, Geom.line,
                            Geom.point,
                            color = :steps_per_round, 
                            style(point_shapes=[diamond],
@@ -386,8 +410,10 @@ end
 
 
 function load_random_df(datadir::String, nbehaviors::Int, nfiles::Int)
+
     globstring = "$datadir/*nbehaviors=[$nbehaviors*"
     println("Loading data from files matching $globstring")
+
     globlist = glob(globstring)
     filepaths = sample(globlist, nfiles)
 
