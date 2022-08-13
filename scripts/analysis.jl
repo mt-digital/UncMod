@@ -2,6 +2,7 @@ using DrWatson
 quickactivate("..")
 
 using CategoricalArrays
+using Chain
 
 using DataFrames
 using Gadfly, Compose, LaTeXStrings
@@ -414,7 +415,7 @@ end
 trials for each dataframe passed in from vector. Assumed there is one dataframe
 for each behavior, so each dataframe has exactly one unique value in its
 nbehaviors column."
-function calculate_pct_fixation(behavior_dfs::Vector{DataFrame})
+function calculate_pct_fixation(df::DataFrame)
     
     # Initialize output tally of fixated and total trials.
     fixdf = DataFrame(
@@ -423,23 +424,26 @@ function calculate_pct_fixation(behavior_dfs::Vector{DataFrame})
     )
 
     # Iterate over given dataframes, assumed one for each behavior.
-    for df in behavior_dfs
+    # for df in behavior_dfs
 
-        by_ensemble = groupby(df, :ensemble)
-        cb = combine(by_ensemble, :step => maximum => :step)
+    # print(last(df, 20))
 
-        endstepdf = leftjoin(cb, df; on = [:ensemble, :step])
+    by_ensemble = groupby(df, [:nbehaviors, :ensemble])
+    # println(by_ensemble)
 
-        nonfix = endstepdf[(endstepdf.mean_social_learner .> 0.0) .& 
-                           (endstepdf.mean_social_learner .< 1.0), 
-                           :]
-        N_trials = nrow(endstepdf)
-        N_nonfix = nrow(nonfix)
-        push!(fixdf, [df[1, :nbehaviors], N_nonfix, N_trials, (N_nonfix / N_trials)])
-    end
+    cb = combine(by_ensemble, :step => maximum => :step)
 
-    # Want table to ordered by increasing B.
-    return sort(fixdf, :B)
+    endstepdf = leftjoin(cb, df; on = [:nbehaviors, :ensemble, :step])
+
+    endstepdf.nonfix = (endstepdf.mean_social_learner .> 0.0) .&
+                       (endstepdf.mean_social_learner .< 1.0)
+
+    res = combine(groupby(endstepdf, :nbehaviors), 
+                     :nonfix => sum => :nonfix)
+
+    res.nonfixpct = res.nonfix / (nrow(endstepdf) / length(res.nbehaviors))
+
+    return nrow(endstepdf), res
 end
 
 
