@@ -32,14 +32,17 @@ function experiment(ntrials = 10;
                     whensteps = 100,
                     env_uncertainty = [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0],
                     random_init = false,
-                    tau = 0.1
+                    tau = 0.1,
+                    nteachers = 5,
+                    init_social_learner_prevalence = 0.5,
+                    stop_cond = :default
                     # env_uncertainty = collect(0.0:0.1:1.0)
     )
     
     trial_idx = collect(1:ntrials)
 
     params_list = dict_list(
-        @dict steps_per_round nbehaviors high_payoff low_payoff trial_idx env_uncertainty
+        @dict steps_per_round nbehaviors high_payoff low_payoff trial_idx env_uncertainty tau nagents nteachers init_social_learner_prevalence
     )
 
     # We are not interested in cases where high expected payoff is less than
@@ -54,7 +57,8 @@ function experiment(ntrials = 10;
              (:prev_net_payoff, mean)]
 
     mdata = [:env_uncertainty, :trial_idx, :high_payoff, 
-             :low_payoff, :nbehaviors, :steps_per_round, :optimal_behavior] 
+             :low_payoff, :nbehaviors, :steps_per_round, 
+             :optimal_behavior] 
 
     models = [
         uncertainty_learning_model(;
@@ -64,19 +68,23 @@ function experiment(ntrials = 10;
         for params in params_list
     ]
 
-    function stop_cond(model, step)
+    function stop_condfn(model, step)
         n_sl = sum(a.social_learner for a in allagents(model))
 
         fixated = (n_sl == 0.0) || (n_sl == nagents)
 
-        return fixated || step > max_niter
+        if stop_cond == :default
+            return fixated || step > max_niter
+        elseif stop_cond == :all_social_learners
+            return step > max_niter * model.properties[:steps_per_round]
+        end
     end
 
     adf, mdf = ensemblerun!(
-        models, agent_step!, model_step!, stop_cond; 
+        models, agent_step!, model_step!, stop_condfn; 
         adata, mdata, 
         when = (model, step) -> ( 
-            ((step + 1) % whensteps == 0)  ||  (step == 0) || stop_cond(model, step) 
+            ((step + 1) % whensteps == 0)  ||  (step == 0) || stop_condfn(model, step) 
         ),
         parallel = true,
         batch_size = max(length(models) ÷ nprocs(), 1)
