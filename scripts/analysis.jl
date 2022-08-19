@@ -113,7 +113,7 @@ function main_SL_result(yvar = :mean_social_learner;
         # averaged dataframe at final time step.
         df = load_random_df(datadir, nbehaviors, nfiles)
         cdf = aggregate_final_timestep(df, yvar)
-        plot_over_u_sigmoids(cdf, nbehaviors, yvar; figuredir = figuredir)
+        plot_over_u_sigmoids(cdf, nbehaviors, yvar; figuredir, nfiles)
     end
 end
 
@@ -173,11 +173,13 @@ end
 
 
 function aggregate_final_timestep(joined_df::DataFrame, yvar::Symbol; 
-                                  socdf = false, socdf_lifespan = 1, 
-                                  generations = 1000)
+                                  socdf = false, generations = 1000
+    )
+
     if socdf
         # Hack to deal with social learning dataframe problems.
-        filter!(r -> r.step == socdf_lifespan * generations - 1, joined_df)
+        filter!(r -> r.step == (r.steps_per_round * generations) - 1, joined_df)
+        # filter!(r -> r.step == r.steps_per_round * generations - 1, joined_df)
     end
 
     # Groupby ensemble, find maximum time step in each ensemble.
@@ -232,7 +234,7 @@ end
 function plot_over_u_sigmoids(final_agg_df, nbehaviors, 
                                        yvar=:mean_social_learner; 
                                        low_payoffs=[0.1, 0.45, 0.8],
-                                       figuredir=".")
+                                       figuredir=".", nfiles = 10)
     df = final_agg_df
 
     if yvar ∈ [:mean_prev_net_payoff, :step]
@@ -244,15 +246,17 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
     end
 
     if yvar == :mean_prev_net_payoff
-        nfiles = 100
+        # nfiles = 100
         socdf = load_random_df("data/sl_expected", nbehaviors, nfiles)
         if nbehaviors ∈ [2, 4]
             filter!(r -> r.steps_per_round ∈ [1, 8], socdf)
         else
             filter!(r -> r.steps_per_round ∈ [1, 20], socdf)
         end
-        aggsocdf = aggregate_final_timestep(socdf, yvar; socdf = true)
-        this_aggsocdf = aggsocdf[aggsocdf.low_payoff .== low_payoff, :]
+        # this_aggsocdf = aggsocdf[aggsocdf.low_payoff .== low_payoff, :]
+
+        # this_aggsocdf = aggregate_final_timestep(socdf, yvar) #; socdf = true)
+        this_aggsocdf = aggregate_final_timestep(socdf, yvar; socdf = true)
     end
 
     for low_payoff in low_payoffs 
@@ -288,6 +292,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                      Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
                      PROJECT_THEME)
         else
+
             for r in eachrow(thisdf)
                 r.mean_prev_net_payoff /= convert(Float64, r.steps_per_round)
             end
@@ -327,15 +332,18 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             # this_aggsocdf = load(soc_file)["aggdf"]
 
             # this_aggsocdf = make_endtime_results_df("data/sl_expected", nbehaviors,
-            filter!(r -> (r.low_payoff == low_payoff) &&
-                         (r.steps_per_round ∈ spr),
-                    this_aggsocdf)
+                                                     # socdf_lifespan = )
 
-            for r in eachrow(this_aggsocdf)
+            this_lowpay_aggsocdf = 
+                filter(r -> (r.low_payoff == low_payoff) &&
+                            (r.steps_per_round ∈ spr),
+                       this_aggsocdf)
+
+            for r in eachrow(this_lowpay_aggsocdf)
                 r.mean_prev_net_payoff /= convert(Float64, r.steps_per_round)
             end
 
-            yticks = 0.0:0.2:1
+            println(this_lowpay_aggsocdf)
             p = plot(
                      layer(thisdf, x=:env_uncertainty, y=yvar, 
                            color = :steps_per_round, Geom.line, Geom.point),
@@ -344,7 +352,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                                 color=[SEED_COLORS[1], 
                                        SEED_COLORS[4]], 
                                 style=:ldash, size=2.5pt),
-                     layer(this_aggsocdf, x=:env_uncertainty, y=yvar, Geom.line,
+                     layer(this_lowpay_aggsocdf, x=:env_uncertainty, y=yvar, Geom.line,
                            Geom.point,
                            color = :steps_per_round, 
                            style(point_shapes=[diamond],
@@ -353,7 +361,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                                  line_style=[:dashdot])), 
                      Guide.xlabel(""),
                      Guide.ylabel(""), 
-                     Guide.yticks(ticks=yticks),
+                     # Guide.yticks(ticks=yticks),
                      Scale.color_discrete(gen_two_colors),
                      Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
                      PROJECT_THEME)
