@@ -178,8 +178,15 @@ function aggregate_final_timestep(joined_df::DataFrame, yvar::Symbol;
 
     if socdf
         # Hack to deal with social learning dataframe problems.
-        filter!(r -> r.step == (r.steps_per_round * generations) - 1, joined_df)
-        # filter!(r -> r.step == r.steps_per_round * generations - 1, joined_df)
+        # println("doing filter")
+        # print(last(joined_df, 10))
+        # print(unique(joined_df.step))
+        # if joined_df.nbehaviors[1] == 10
+        #     filter!(r -> r.step == r.steps_per_round * 5000, joined_df)
+        # else
+        filter!(r -> r.step == (r.steps_per_round * generations), joined_df)
+        # end
+
     end
 
     # Groupby ensemble, find maximum time step in each ensemble.
@@ -253,9 +260,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
         else
             filter!(r -> r.steps_per_round ∈ [1, 20], socdf)
         end
-        # this_aggsocdf = aggsocdf[aggsocdf.low_payoff .== low_payoff, :]
 
-        # this_aggsocdf = aggregate_final_timestep(socdf, yvar) #; socdf = true)
         this_aggsocdf = aggregate_final_timestep(socdf, yvar; socdf = true)
     end
 
@@ -304,8 +309,8 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                 # Calculates expected payoff for all parameter combos & saves.
                 all_expected_individual_payoffs();
             end
-            # indiv_df = load(indiv_file)["df"]
-            indiv_df = load(indiv_file)["ret_df"]
+            indiv_df = load(indiv_file)["df"]
+            # indiv_df = load(indiv_file)["ret_df"]
             if nbehaviors ∈ [2, 4]
                 spr = [1, 8]
             else
