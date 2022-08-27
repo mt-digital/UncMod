@@ -111,9 +111,16 @@ function main_SL_result(yvar = :mean_social_learner;
         # df = make_endtime_results_df("data/develop", nbehaviors, yvar)
         # Don't know why but this outperforms the above to build 
         # averaged dataframe at final time step.
-        df = load_random_df(datadir, nbehaviors, nfiles)
-        cdf = aggregate_final_timestep(df, yvar)
-        plot_over_u_sigmoids(cdf, nbehaviors, yvar; figuredir, nfiles)
+        aggdf_file = "data/mainResult-yvar=$yvar-B=$nbehaviors.jld2"
+        if isfile(aggdf_file)
+            aggdf = load(aggdf_file)["aggdf"]
+        else
+            df = load_random_df(datadir, nbehaviors, nfiles)
+            aggdf = aggregate_final_timestep(df, yvar)
+            @save aggdf_file aggdf
+        end
+
+        plot_over_u_sigmoids(aggdf, nbehaviors, yvar; figuredir, nfiles)
     end
 end
 
@@ -306,11 +313,11 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                 for r in eachrow(thisdf)
                     r[yvar] /= convert(Float64, r.steps_per_round)
                 end
-                ticloc = 20
-                yticks = 0:ticloc:(ticloc * ceil(maximum(thisdf[!, yvar]) / ticloc))
+                # ticloc = 20
+                # yticks = 0:ticloc:(ticloc * ceil(maximum(thisdf[!, yvar]) / ticloc))
             end
 
-            colorgenfn = yvar == :step ? gen_two_colors : gen_colors 
+            # colorgenfn = yvar == :step ? gen_two_colors : gen_colors 
 
             # Calculate location where expected payoffs for all-social
             # and all-individual populations intersect.
@@ -318,11 +325,12 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
 
             p = plot(thisdf, x=:env_uncertainty, y=yvar, 
                      color = :steps_per_round, Geom.line, Geom.point,
-                     yintercept = soc_ind_expected_equal,
+                     # yintercept = soc_ind_expected_equal,
                      Guide.xlabel(""),
                      Guide.ylabel(""), 
                      Guide.yticks(ticks=yticks),
-                     Scale.color_discrete(colorgenfn),
+                     # Scale.color_discrete(colorgenfn),
+                     Scale.color_discrete(gen_colors),
                      Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
                      PROJECT_THEME)
         else
