@@ -238,30 +238,52 @@ function gen_two_colors(n)
 end
 
 
+function calc_soc_ind_equal(low_payoff, nbehaviors; 
+                            indfile = "expected_individual.jld2",
+                            soc_root = "data/aggsocdf_")
+
+    idf = load(indfile)["df"]
+    sdf = load(soc_root * string(nbehaviors) * ".jld2")["aggsocdf"]
+    
+    return idf, sdf
+end
+
+
 function plot_over_u_sigmoids(final_agg_df, nbehaviors, 
                                        yvar=:mean_social_learner; 
                                        low_payoffs=[0.1, 0.45, 0.8],
                                        figuredir=".", nfiles = 10)
     df = final_agg_df
 
-    if yvar ∈ [:mean_prev_net_payoff, :step]
-        if nbehaviors ∈ [2, 4]
-            filter!(r -> r.steps_per_round ∈ [1, 8], df)
-        else
-            filter!(r -> r.steps_per_round ∈ [1, 20], df)
-        end
-    end
+    # if yvar ∈ [:mean_prev_net_payoff, :step]
+    #     if nbehaviors ∈ [2, 4]
+    #         filter!(r -> r.steps_per_round ∈ [1, 8], df)
+    #     else
+    #         filter!(r -> r.steps_per_round ∈ [1, 20], df)
+    #     end
+    # end
 
     if yvar == :mean_prev_net_payoff
         # nfiles = 100
-        socdf = load_random_df("data/sl_expected", nbehaviors, nfiles)
+
+        aggsoc_file = "data/aggsocdf_$nbehaviors.jld2"
+
+        if isfile(aggsoc_file)
+            println("Using synced expected social learner payoffs file $aggsoc_file")
+            aggsocdf = load(aggsoc_file)["aggsocdf"]
+        else
+            socdf = load_random_df("data/sl_expected", nbehaviors, nfiles)
+
+            aggsocdf = aggregate_final_timestep(socdf, yvar; socdf = true)
+
+            @save aggsoc_file aggsocdf
+        end
+
         if nbehaviors ∈ [2, 4]
             filter!(r -> r.steps_per_round ∈ [1, 8], socdf)
         else
             filter!(r -> r.steps_per_round ∈ [1, 20], socdf)
         end
-
-        this_aggsocdf = aggregate_final_timestep(socdf, yvar; socdf = true)
     end
 
     for low_payoff in low_payoffs 
@@ -287,9 +309,16 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                 ticloc = 20
                 yticks = 0:ticloc:(ticloc * ceil(maximum(thisdf[!, yvar]) / ticloc))
             end
+
             colorgenfn = yvar == :step ? gen_two_colors : gen_colors 
+
+            # Calculate location where expected payoffs for all-social
+            # and all-individual populations intersect.
+            soc_ind_expected_equal = calc_soc_ind_equal(low_payoff, nbehaviors)
+
             p = plot(thisdf, x=:env_uncertainty, y=yvar, 
                      color = :steps_per_round, Geom.line, Geom.point,
+                     yintercept = soc_ind_expected_equal,
                      Guide.xlabel(""),
                      Guide.ylabel(""), 
                      Guide.yticks(ticks=yticks),
@@ -310,7 +339,6 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                 all_expected_individual_payoffs();
             end
             indiv_df = load(indiv_file)["df"]
-            # indiv_df = load(indiv_file)["ret_df"]
             if nbehaviors ∈ [2, 4]
                 spr = [1, 8]
             else
@@ -328,40 +356,35 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             expected_individual_intercepts = 
                 sort(indiv_df, :steps_per_round).mean_prev_net_payoff
 
-            # Prepare lines for expected social learner payoffs, ⟨πₛ⟩.
-            # nfiles = 100 
-            # df = load_random_df("data/sl_expected", nbehaviors, 10)
-            # this_aggsocdf = aggregate_final_timestep(df, yvar)
-
-            # println("Loading...")
-            # this_aggsocdf = load(soc_file)["aggdf"]
-
-            # this_aggsocdf = make_endtime_results_df("data/sl_expected", nbehaviors,
-                                                     # socdf_lifespan = )
-
-            this_lowpay_aggsocdf = 
+            lowpay_aggsocdf = 
                 filter(r -> (r.low_payoff == low_payoff) &&
                             (r.steps_per_round ∈ spr),
-                       this_aggsocdf)
+                       aggsocdf)
 
-            for r in eachrow(this_lowpay_aggsocdf)
+            for r in eachrow(lowpay_aggsocdf)
                 r.mean_prev_net_payoff /= convert(Float64, r.steps_per_round)
             end
 
-            println(this_lowpay_aggsocdf)
+            # if yvar ∈ [:mean_prev_net_payoff]  #, :step]
+            if nbehaviors ∈ [2, 4]
+                filter!(r -> r.steps_per_round ∈ [1, 8], lowpay_aggsocdf)
+            else
+                filter!(r -> r.steps_per_round ∈ [1, 20], lowpay_aggsocdf)
+            end
+            # end
             p = plot(
-                     layer(thisdf, x=:env_uncertainty, y=yvar, 
+                     layer(thisdf, x=:env_uncertainty, y=yvar,  
                            color = :steps_per_round, Geom.line, Geom.point),
                      yintercept = expected_individual_intercepts,
                      Geom.hline(; 
                                 color=[SEED_COLORS[1], 
                                        SEED_COLORS[4]], 
                                 style=:ldash, size=2.5pt),
-                     layer(this_lowpay_aggsocdf, x=:env_uncertainty, y=yvar, Geom.line,
+                     layer(lowpay_aggsocdf, x=:env_uncertainty, y=yvar, Geom.line,
                            Geom.point,
                            color = :steps_per_round, 
                            style(point_shapes=[diamond],
-                                 point_size=4.5pt,
+                                 point_size=4.5pt, 
                                  line_width=2.5pt, 
                                  line_style=[:dashdot])), 
                      Guide.xlabel(""),
@@ -380,6 +403,65 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             p
         )
     end
+end
+
+
+function payoffs_legend(; outfile = "testfig/payoffs_legend.pdf")
+
+    xsims1 = 0.0
+    xsims2 = 1.0
+    xindiv1 = 4.25
+    xindiv2 = 5.25
+    xsoc1 = 9.0
+    xsoc2 = 10.0
+
+    y = 0
+
+    set_default_plot_size((7*2.54)cm, 1.50cm)
+
+    p = plot(
+         Theme(minor_label_font_size = 0pt, # default_color=colorant"black", 
+               grid_color = "white", ),
+
+             layer(x=[xsims1, mean([xsims1, xsims2]), xsims2], 
+               y=[y, y, y], Geom.line, Geom.point, color = [colorant"black"],
+               style(point_shapes=[Shape.circle],
+                     point_size=4.5pt, 
+                     line_width=2.5pt)),
+         Guide.annotation(compose(context(), 
+                          text(xsims2 + 0.3, y, "Simulations", hleft, vcenter)
+                         )),
+
+         layer(x=[xindiv1, mean([xindiv1, xindiv2]), xindiv2], 
+               y=[y, y, y], Geom.line, color = [colorant"black"],
+               style(line_width=2.5pt, 
+                     line_style=[:ldash])),
+         Guide.annotation(compose(context(), 
+                                  text(xindiv2 + 0.3, y, "All asocial", hleft, vcenter)
+                         )),
+
+         layer(x=[xsoc1, mean([xsoc1, xsoc2]), xsoc2], 
+               y=[y, y, y], Geom.line, Geom.point, color = [colorant"black"],
+               style(point_shapes=[diamond],
+                     point_size=4.5pt, 
+                     line_width=2.5pt, 
+                     line_style=[:dashdot])),
+         # text
+
+         Guide.xticks(label=false, ticks=nothing),
+         # Guide.yticks(label=false, ticks=[0]),
+         Guide.xlabel(nothing), Guide.ylabel(nothing),
+         Guide.annotation(compose(context(), 
+                                  text(xsoc2 + 0.3, y, "All social", hleft, vcenter)
+                         )),
+         layer(x=[xsoc2+2.5], 
+               y=[y], Geom.line, Geom.point,
+               style(point_shapes=[Shape.circle],
+                     point_size=0pt, 
+                     line_width=2.5pt)),
+        )
+        
+    draw(PDF(outfile), p)
 end
 
 
