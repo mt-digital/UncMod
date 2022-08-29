@@ -24,17 +24,17 @@ PROJECT_THEME = Theme(
     major_label_font="CMU Serif",minor_label_font="CMU Serif", 
     point_size=5.5pt, major_label_font_size = 18pt, 
     minor_label_font_size = 18pt, key_title_font_size=18pt, 
-    line_width = 3.5pt, key_label_font_size=14pt, grid_line_width = 3.5pt
+    line_width = 3.5pt, key_label_font_size=14pt, grid_line_width = 1.5pt
 )
 
 function N_sensitivity_results(yvars = 
                                 [:mean_social_learner, :mean_prev_net_payoff, 
                                  :step]; 
-                                Ns = ["50", "200", "1000"],
+                                Ns = ["50", "100", "200"],
                                 figuredir = "papers/UncMod/Figures", 
-                                nbehaviorsvec=[2, 4, 10], 
+                                nbehaviorsvec=[2, 4, 10], annotate = false,
+                                nfiles = 100
                                 ) 
-    default_nfiles = 10
 
     for N in Ns
         for yvar in yvars
@@ -44,16 +44,8 @@ function N_sensitivity_results(yvars =
             # separate if they are. This is done for compat with main_SL_result.
             datadir = "data/nagents_sensitivity/nagents=$N"
 
-            if N == "1000"
-                nfiles = 100
-            else
-                nfiles = default_nfiles
-            end
-
-            println("Using $nfiles files for N=$N")
-
             main_SL_result(yvar; figuredir = "$figuredir/nagents=$N", 
-                           datadir, nfiles)
+                           datadir, nfiles, syncfile_tag="N=$N", annotate=false)
         end
     end
 end
@@ -73,9 +65,9 @@ function nteachers_sensitivity_results(yvars =
             # TODO Add code to check if these are available and create and automatically
             # separate if they are. This is done for compat with main_SL_result.
             # datadir = "data/nteachers_sensitivity/nteachers=$nteachers"
-            datadir = "data/nteachers_sensitivity/nteachers$nteachers"
-            main_SL_result(yvar; figuredir = "$figuredir/nteachers$nteachers", 
-                           datadir, nfiles)
+            datadir = "data/nteachers_sensitivity/nteachers=$nteachers"
+            main_SL_result(yvar; figuredir = "$figuredir/supplement/nteachers=$nteachers", 
+                           datadir, nfiles, syncfile_tag="nteachers", annotate=false)
         end
     end
 end
@@ -84,7 +76,7 @@ function tau_sensitivity_results(yvars =
                                 [:mean_social_learner, :mean_prev_net_payoff, 
                                  :step], 
                                 taus = ["0.01", "1.0"];
-                                figuredir = "papers/UncMod/Figures", 
+                                figuredir = "papers/UncMod/Figures/supplement", 
                                 nbehaviorsvec=[2, 4, 10], 
                                 nfiles = 10)  # New parallel runs easily do 100 trials per file
     for tau in taus
@@ -95,7 +87,7 @@ function tau_sensitivity_results(yvars =
             # separate if they are. This is done for compat with main_SL_result.
             datadir = "data/tau_sensitivity/$tau"
             main_SL_result(yvar; figuredir = "$figuredir/sensitivity_tau=$tau", 
-                           datadir, nfiles)
+                           datadir, nfiles, syncfile_tag="tau_sensitivity")
         end
     end
 end
@@ -105,14 +97,19 @@ function main_SL_result(yvar = :mean_social_learner;
                         opacity = 0.8,
                         figuredir = "papers/UncMod/Figures", 
                         nbehaviorsvec=[2, 4, 10], 
-                        datadir = "data/develop",
-                        nfiles = 100)  # Assumes 10 per trial, so 1000 trials.
+                        datadir = "data/develop", syncfile_tag = nothing,
+                        nfiles = 100, annotate = true)  # Assumes 10 per trial, so 1000 trials.
 
     for nbehaviors in nbehaviorsvec
         # df = make_endtime_results_df("data/develop", nbehaviors, yvar)
         # Don't know why but this outperforms the above to build 
         # averaged dataframe at final time step.
-        aggdf_file = "data/mainResult-yvar=$yvar-B=$nbehaviors.jld2"
+        if isnothing(syncfile_tag)
+            aggdf_file = "data/mainResult-yvar=$yvar-B=$nbehaviors.jld2"
+        else
+            aggdf_file = "data/mainResult-yvar=$yvar-B=$nbehaviors-$syncfile_tag.jld2"
+        end
+
         if isfile(aggdf_file)
             println("Loading aggregated data from file $aggdf_file")
             aggdf = load(aggdf_file)["aggdf"]
@@ -122,7 +119,8 @@ function main_SL_result(yvar = :mean_social_learner;
             @save aggdf_file aggdf
         end
 
-        plot_over_u_sigmoids(aggdf, nbehaviors, yvar; figuredir, nfiles, opacity)
+        plot_over_u_sigmoids(aggdf, nbehaviors, yvar; 
+                             figuredir, nfiles, opacity, annotate)
     end
 end
 
@@ -351,9 +349,11 @@ end
 
 
 function plot_over_u_sigmoids(final_agg_df, nbehaviors, 
-                                       yvar=:mean_social_learner; 
-                                       low_payoffs=[0.1, 0.45, 0.8],
-                                       figuredir=".", nfiles = 10, opacity = 0.8)
+                                       yvar = :mean_social_learner; 
+                                       low_payoffs = [0.1, 0.45, 0.8],
+                                       figuredir = ".", nfiles = 10, 
+                                       annotate = true,
+                                       opacity = 0.8)
     df = final_agg_df
 
     if yvar == :mean_prev_net_payoff
@@ -414,21 +414,6 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             # Calculate location where expected payoffs for all-social
             # and all-individual populations intersect.
             # soc_ind_expected_equal = calc_soc_ind_equal(low_payoff, nbehaviors)
-            idf, sdf = load_idf_sdf(nbehaviors)
-            sorted_steps = sort(unique(thisdf.steps_per_round))
-            u_eq_locs = [
-                calc_one_soc_ind_equal(idf, sdf, low_payoff, nbehaviors,
-                                       steps_per_round)
-
-                for steps_per_round in sorted_steps
-            ]
-
-            # println(u_eq_locs)
-
-            stepsdf = load_steps_df(nbehaviors)
-            u_Gmax_vec = calc_uGmax(stepsdf, low_payoff, nbehaviors)
-
-            SEED_COLORS_TRANS = [RGBA(c, 0.7) for c in SEED_COLORS]
 
             if nbehaviors == 10
                 colorkeypos = [.05w,0.275h]
@@ -455,31 +440,60 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             end
             println(colorkeypos)
 
-            # Add some jitter to the x-intercepts.
-            d = Normal(0.0, 0.01)
-            u_eq_locs .+= rand(d, 4)
-            u_Gmax_vec .+= rand(d, 4)
+            if annotate
+                idf, sdf = load_idf_sdf(nbehaviors)
+                sorted_steps = sort(unique(thisdf.steps_per_round))
+                u_eq_locs = [
+                    calc_one_soc_ind_equal(idf, sdf, low_payoff, nbehaviors,
+                                           steps_per_round)
+                    for steps_per_round in sorted_steps
+                ]
 
-            u_eq_locs[u_eq_locs .> 1.0] .= 0.99
-            u_Gmax_vec[u_Gmax_vec .> 1.0] .= 0.99
+                stepsdf = load_steps_df(nbehaviors)
+                u_Gmax_vec = calc_uGmax(stepsdf, low_payoff, nbehaviors)
 
-            p = plot(thisdf, x=:env_uncertainty, y=yvar, 
-                     color = :steps_per_round, Geom.line, #Geom.point,
+                SEED_COLORS_TRANS = [RGBA(c, 0.7) for c in SEED_COLORS]
 
-                     xintercept = [u_eq_locs..., u_Gmax_vec...],
-                     Geom.vline(;color=[SEED_COLORS_TRANS..., 
-                                        SEED_COLORS_TRANS...],
-                                 style=[repeat([:ldash], 4)..., 
-                                        repeat([:dot], 4)...],
-                                 size=2.5pt),
+                # Add some jitter to the x-intercepts if there are repeats.
+                d = Normal(0.0, 0.005)
+                if !(length(unique(u_eq_locs)) == 4)
+                    u_eq_locs .+= rand(d, 4)
+                end
+                if !(length(unique(u_Gmax_vec)) == 4)
+                    u_Gmax_vec .+= rand(d, 4)
+                end
 
-                     Guide.xlabel(""),
-                     Guide.ylabel(""), 
-                     Guide.yticks(ticks=yticks),
-                     # Scale.color_discrete(colorgenfn),
-                     Scale.color_discrete(gen_colors),
-                     Guide.colorkey(title="<i>L</i>", pos=colorkeypos),
-                     PROJECT_THEME)
+                u_eq_locs[u_eq_locs .> 1.0] .= 0.99
+                u_Gmax_vec[u_Gmax_vec .> 1.0] .= 0.99
+
+                p = plot(thisdf, x=:env_uncertainty, y=yvar, 
+                         color = :steps_per_round, Geom.line, #Geom.point,
+
+                         xintercept = [u_eq_locs..., u_Gmax_vec...],
+                         Geom.vline(;color=[SEED_COLORS_TRANS..., 
+                                            SEED_COLORS_TRANS...],
+                                     style=[repeat([:ldashdot], 4)..., 
+                                            repeat([:dot], 4)...],
+                                     size=2.5pt),
+
+                         Guide.xlabel(""),
+                         Guide.ylabel(""), 
+                         Guide.yticks(ticks=yticks),
+                         # Scale.color_discrete(colorgenfn),
+                         Scale.color_discrete(gen_colors),
+                         Guide.colorkey(title="<i>L</i>", pos=colorkeypos),
+                         PROJECT_THEME)
+            else
+                p = plot(thisdf, x=:env_uncertainty, y=yvar, 
+                         color = :steps_per_round, Geom.line, #Geom.point,
+                         Guide.xlabel(""),
+                         Guide.ylabel(""), 
+                         Guide.yticks(ticks=yticks),
+                         Scale.color_discrete(gen_colors),
+                         Guide.colorkey(title="<i>L</i>", pos=colorkeypos),
+                         PROJECT_THEME)
+            end
+
         else
 
             for r in eachrow(thisdf)
@@ -522,6 +536,21 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                 r.mean_prev_net_payoff /= convert(Float64, r.steps_per_round)
             end
 
+            idf, sdf = load_idf_sdf(nbehaviors)
+            sorted_steps = sort(unique(thisdf.steps_per_round))
+            u_eq_locs = [
+                calc_one_soc_ind_equal(idf, sdf, low_payoff, nbehaviors,
+                                       steps_per_round)
+                for steps_per_round in sorted_steps
+            ]
+
+            d = Normal(0.0, 0.005)
+            if !(length(unique(u_eq_locs)) == 4)
+                u_eq_locs .+= rand(d, 4)
+            end
+
+            u_eq_locs[u_eq_locs .> 1.0] .= 0.99
+
             SEED_COLORS_TRANS = [RGBA(c, 0.8) for c in SEED_COLORS]
 
             p = plot(
@@ -544,6 +573,8 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                            #       point_size=4.5pt, 
                                  line_width=2.5pt, 
                                  line_style=[:dot])), 
+                     xintercept = u_eq_locs,
+                     Geom.vline(; color=SEED_COLORS_TRANS, style=:ldashdot, size=2.5pt),
                      Guide.xlabel(""),
                      Guide.ylabel(""), 
                      # Guide.yticks(ticks=yticks),
@@ -639,7 +670,7 @@ function mean_social_legend(outfile = "papers/UncMod/Figures/mean_social_legend_
          Theme(minor_label_font_size = 0pt, # default_color=colorant"black", 
                grid_color = "white", ),
 
-             layer(x=[xmaxdrift1, mean([xmaxdrift1, xmaxdrift2]), xmaxdrift2], 
+         layer(x=[xmaxdrift1, mean([xmaxdrift1, xmaxdrift2]), xmaxdrift2], 
                y=[y, y, y], Geom.line, color = [colorant"grey"], #Geom.point, 
                style(line_style=[:ldash], line_width=2.5pt)),
          Guide.annotation(compose(context(), 
@@ -776,4 +807,25 @@ function calculate_pct_fixation(datadir::String, nfiles::Int,
     df = load_random_df(datadir, nfiles, nbehaviors)
 
     return df, calculate_pct_fixation(df)
+end
+
+
+function make_line_elements(; elemwidth = 11pt, linelen = 1.75inch, 
+                              figuredir = "testfig/lines")
+
+    set_default_plot_size(linelen, elemwidth)
+
+    for line_style in [:solid, :ldash, :dot, :ldashdot]
+        p = plot(
+             Theme(minor_label_font_size = 0pt, grid_color = "white"),
+
+             layer(x=[0, 3], y=[0, 0], Geom.line, color = [colorant"grey"], 
+                   style(line_style=[line_style], line_width=5pt)),
+             Guide.xticks(label=false, ticks=nothing),
+             # Guide.yticks(label=false, ticks=[0]),
+             Guide.xlabel(nothing), Guide.ylabel(nothing),
+        )
+
+        draw(PDF(joinpath(figuredir, "$(string(line_style)).pdf")), p)
+    end
 end
