@@ -115,13 +115,67 @@ function all_expected_individual_payoffs(; savefile = "expected_individual.jld2"
     df_B10 = expected_individual_payoff(;nbehaviors = [10], 
                                          steps_per_round_vec = [1,5,10,20])
 
-    ret_df = vcat(df_B_2_4, df_B10)
-    ret_df = ret_df[ret_df.step .!== 0, 
+    df = vcat(df_B_2_4, df_B10)
+    df = df[df.step .!== 0, 
               [:low_payoff, :nbehaviors, :steps_per_round, :mean_prev_net_payoff]]
                                      
     if !isnothing(savefile)
-        @save savefile ret_df
+        @save savefile df
     end
-    
-    return ret_df
+
+    println("saved")
 end
+
+
+function all_expected_social_payoffs(; savefile = "expected_social.jld2")
+    for B in [2, 4, 10]
+        aggdf = aggregate_final_timestep(
+             load_expected_social_df(B), :mean_prev_net_payoff
+        )
+        @save "expected_social_B=$B.jld2" aggdf
+    end
+end
+
+
+function load_expected_social_df(nbehaviors::Int; datadir = "data/expected_social", 
+                                    jld2_key = "expected_social_joined_df"
+    )
+
+    if nbehaviors == 10
+        filepaths_10 = glob("$datadir/*nbehaviors=[[]10*") 
+        dfs = Vector{DataFrame}()
+        ensemble_offset = 0
+        
+        for f in filepaths_10
+
+            tempdf = load(f)[jld2_key]
+            tempdf.ensemble .+= ensemble_offset
+            ensemble_offset = maximum(tempdf.ensemble)
+
+            push!(dfs, tempdf)
+        end
+
+        df10 = vcat(dfs...) 
+        
+        return df10
+    else
+        dfs = Vector{DataFrame}()
+        ensemble_offset = 0
+
+        filepaths_2_4 = glob("$datadir/*nbehaviors=[[]2,4[]]*")
+        for f in filepaths_2_4
+
+            tempdf = load(f)[jld2_key]
+            filter!(r -> r.nbehaviors == nbehaviors, tempdf)
+
+            tempdf.ensemble .+= ensemble_offset
+            ensemble_offset = maximum(tempdf.ensemble)
+
+            push!(dfs, tempdf)
+        end
+
+        return vcat(dfs...)
+    end
+end
+                            
+
