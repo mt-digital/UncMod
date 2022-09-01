@@ -218,7 +218,7 @@ end
 function plot_timeseries_selection(datadir, low_payoff, nbehaviors, 
                                    env_uncertainty, steps_per_round, ntimeseries,
                                    yvar = :mean_social_learner,
-                                   series_per_file = 10)
+                                   series_per_file = 1)
 
     # Default 50 series for each parameter setting in each file.
     nfiles = Int(ceil(ntimeseries / series_per_file))
@@ -231,14 +231,14 @@ function plot_timeseries_selection(datadir, low_payoff, nbehaviors,
 
     df = df[select_cond, :]
     
-    nsteps = length(unique(df.step))
-    nensembles = length(unique(df.ensemble))
-    ensemble_replace_indexes = 
-        string.(vcat([repeat([i], nsteps) for i in 1:nensembles]...))
+    # nsteps = length(unique(df.step))
+    # nensembles = length(unique(df.ensemble))
+    # ensemble_replace_indexes = 
+    #     string.(vcat([repeat([i], nsteps) for i in 1:nensembles]...))
 
-    println(length(df.ensemble))
-    println(length(ensemble_replace_indexes))
-    df.ensemble = ensemble_replace_indexes
+    # println(length(df.ensemble))
+    # println(length(ensemble_replace_indexes))
+    # df.ensemble = ensemble_replace_indexes
     
     # Make plot.
     pilow = low_payoff
@@ -250,7 +250,7 @@ function plot_timeseries_selection(datadir, low_payoff, nbehaviors,
 """π<sub> low</sub> = $pilow; B = $B; u = $env_uncertainty; L = $L
 """
 
-    plot(df, x=:step, y=:mean_social_learner, color=:ensemble, 
+    plot(df, x=:step, y=yvar, color=:ensemble, 
          Geom.line(), Guide.title(title))
 end
 
