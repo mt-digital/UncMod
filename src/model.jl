@@ -19,10 +19,14 @@ using Debugger
 
 
 """
+Initialize one instance of the social learning model with the given parameters.
 
+Notes: 
+- we use tau in the model code here, not β as we did in the paper; Recall 
+  β = 1/tau. 
 """
 function uncertainty_learning_model(; 
-                                    nagents = 100,  
+                                    numagents = 100,  
                                     nbehaviors = 2,
                                     steps_per_round = 5,
                                     nteachers = 5,
@@ -32,17 +36,30 @@ function uncertainty_learning_model(;
                                     low_payoff = 0.1,
                                     trial_idx = nothing,
                                     env_uncertainty = 0.0,
+                                    ngenerations_fixated = 1,
                                     model_parameters...)
     
     tick = 1
+    # Optimal behavior will be randomly set between 1 and nbehaviors below.
     optimal_behavior = 0
     expected_payoffs = []
+
+    # Set up tracking to possibly stop the model after ngenerations. 
+    # `model.stop` will be set to true based on a check of whether the model
+    # is fixated. `model.fixated` will be set last in model_step! after 
+    # this check, so that model.stop is detected after one fixated generation.
+    if ngenerations_fixated > 1
+        @assert false "Maximum number of generations to run past fixation limited to 1"
+    end
+    fixated = false
+    stop = false
+
     # Build full dictionary of model parameters and mutation distribution.
     params = merge(
 
         Dict(model_parameters),  
 
-        @dict steps_per_round tick low_payoff high_payoff nbehaviors nteachers trial_idx env_uncertainty optimal_behavior expected_payoffs tau
+        @dict steps_per_round tick low_payoff high_payoff nbehaviors nteachers trial_idx env_uncertainty optimal_behavior expected_payoffs tau fixated stop
 
     )
 
@@ -50,11 +67,13 @@ function uncertainty_learning_model(;
     model = ABM(LearningAgent, scheduler = Schedulers.fastest;
                 properties = params)
 
+    # Initialize environment.
     model.optimal_behavior = sample(1:nbehaviors)
     model.expected_payoffs = repeat([low_payoff], nbehaviors)
     model.expected_payoffs[model.optimal_behavior] = high_payoff
+
     
-    for ii in collect(1:nagents)
+    for ii in collect(1:numagents)
 
         if rand(model.rng) < init_social_learner_prevalence
             social_learner = true
@@ -209,6 +228,14 @@ function model_step!(model)
             agent.step_payoff = 0.0
         end
 
+        # Next two conditionals detect when to stop for the 
+        # stop-after-one-fixated-generation stopping function.
+        model.stop = model.fixated
+
+        # This one first detects whether the model is fixated, which will
+        # be read above after one final generation runs.
+        n_sl = sum(a.social_learner for a in allagents(model))
+        model.fixated = (n_sl == 0.0) || (n_sl == nagents(model))
     end
 
     model.tick += 1

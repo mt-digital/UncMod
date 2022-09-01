@@ -64,7 +64,6 @@ function experiment(ntrials = 10;
         uncertainty_learning_model(;
             nagents = nagents, 
             params...)
-
         for params in params_list
     ]
 
@@ -75,6 +74,8 @@ function experiment(ntrials = 10;
 
         if stop_cond == :default
             return fixated || step == max_niter
+        elseif stop_cond == :fixation_plus_onegen
+            return model.stop
         elseif stop_cond == :all_social_learners
             return step == max_niter * model.properties[:steps_per_round]
         end
