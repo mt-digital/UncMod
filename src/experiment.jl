@@ -35,7 +35,7 @@ function experiment(ntrials = 10;
                     tau = 0.1,
                     nteachers = 5,
                     init_social_learner_prevalence = 0.5,
-                    stop_cond = :default
+                    stop_cond = :fixation_plus_onegen
                     # env_uncertainty = collect(0.0:0.1:1.0)
     )
     
