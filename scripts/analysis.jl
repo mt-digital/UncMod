@@ -17,7 +17,9 @@ import Cairo, Fontconfig
 
 using Statistics
 
+
 include("expected_homogenous_payoff.jl")
+include("../src/model.jl")
 
 
 PROJECT_THEME = Theme(
@@ -419,22 +421,16 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                 colorkeypos = [.05w,0.275h]
             elseif nbehaviors == 4
                 colorkeypos = [.05w,0.275h]
-                # if low_payoff == 0.8
-                #     colorkeypos = [.25w,0.275h]
-                # end
             elseif nbehaviors == 2
                 colorkeypos = [.865w,-0.205h]
             end
 
             if (nbehaviors == 2) && (low_payoff == 0.8)
-                println("in here B=2")
                 colorkeypos = [.735w,-0.205h]
                 println(colorkeypos)
             end
 
             if (nbehaviors == 4) && (low_payoff == 0.8)
-                println("in here B=4")
-                # colorkeypos = [.685w,-0.225h]
                 colorkeypos = [.25w,0.275h]
                 println(colorkeypos)
             end
@@ -479,7 +475,6 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                          Guide.xlabel(""),
                          Guide.ylabel(""), 
                          Guide.yticks(ticks=yticks),
-                         # Scale.color_discrete(colorgenfn),
                          Scale.color_discrete(gen_colors),
                          Guide.colorkey(title="<i>L</i>", pos=colorkeypos),
                          PROJECT_THEME)
@@ -824,6 +819,7 @@ function make_line_elements(; elemwidth = 11pt, linelen = 1.75inch,
     end
 end
 
+
 function make_payoffs_timeseries(u, pilow, B, L; numagents = 1000, whensteps = 1)
 
     # homogenous_adata = [(:behavior, countmap), (:social_learner, mean),
@@ -860,32 +856,26 @@ function make_payoffs_timeseries(u, pilow, B, L; numagents = 1000, whensteps = 1
     #     nbehaviors = B, steps_per_round = L,
     #     init_social_learner_prevalence = 1.0
     # )
-    # soc_adf, soc_mdf = run!(soc_model, agent_step!, model_step!, maxits_homogenous;
+    # soc_adf, soc_mdf = run!(soc_model, agent_step!, model_step!, maxits_homogenous; 
     #                         adata = homogenous_adata, mdata, when)
 
     println("Running simulations")
-    # Finally, run standard simulations but with updated adata to track
+    # Finally, run standard simulations but with updated adata to track 
     # mean payoffs for population and for asocial and social learners.
 
     # Define functions and adata reporter to aggregate asocial and social payoffs.
-    function asoc_payoff_mean(avec)
-        return mean(filter(a -> !a.social_learner, avec))
-    end
-    function soc_payoff_mean(avec)
-        return mean(filter(a -> a.social_learner, avec))
-    end
+
     is_asoc(a) = !a.prev_social_learner
     is_soc(a) = a.prev_social_learner
 
-    nanmean(x) = mean(filter(!isnan, x))
     sim_adata = [
-        (:behavior, countmap),
+        (:behavior, countmap), 
         (:social_learner, mean),
-        # (:net_payoff, mean),
-        # (:net_payoff, mean, is_asoc),
+        # (:net_payoff, mean), 
+        # (:net_payoff, mean, is_asoc), 
         # (:net_payoff, mean, is_soc),
-        (:prev_net_payoff, mean),
-        (:prev_net_payoff, mean, is_asoc),
+        (:prev_net_payoff, mean), 
+        (:prev_net_payoff, mean, is_asoc), 
         (:prev_net_payoff, mean, is_soc)
     ]
 
@@ -901,8 +891,6 @@ function make_payoffs_timeseries(u, pilow, B, L; numagents = 1000, whensteps = 1
     )
     sim_adf, sim_mdf = run!(sim_model, agent_step!, model_step!, stopcond;
                     adata = sim_adata, mdata, when)
-
-    # return asoc_adf, soc_adf, sim_adf
     return sim_adf, sim_mdf
 end
 
