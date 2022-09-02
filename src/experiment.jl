@@ -80,15 +80,29 @@ function experiment(ntrials = 10;
         end
     end
 
-    adf, mdf = ensemblerun!(
-        models, agent_step!, model_step!, stop_condfn; 
-        adata, mdata, 
-        when = (model, step) -> ( 
-            ((step + 1) % whensteps == 0)  ||  (step == 0) || stop_condfn(model, step) 
-        ),
-        parallel = true,
-        batch_size = max(length(models) ÷ nprocs(), 1)
-    )
+
+    if stop_cond == :all_social_learners
+        adf, mdf = ensemblerun!(
+            models, agent_step!, model_step!, stop_condfn; 
+            adata, mdata, 
+            when = (model, step) -> ( 
+                # step + 1 here to get prev_net_payoff for the previous step.
+                ((step + 1) % model.properties[:steps_per_round] == 0)  ||  (step == 0) || stop_condfn(model, step) 
+            ),
+            parallel = true,
+            batch_size = max(length(models) ÷ nprocs(), 1)
+        )
+    else
+        adf, mdf = ensemblerun!(
+            models, agent_step!, model_step!, stop_condfn; 
+            adata, mdata, 
+            when = (model, step) -> ( 
+                ((step + 1) % whensteps == 0)  ||  (step == 0) || stop_condfn(model, step) 
+            ),
+            parallel = true,
+            batch_size = max(length(models) ÷ nprocs(), 1)
+        )
+    end
 
     println("About to return adf, mdf!!!")
 
