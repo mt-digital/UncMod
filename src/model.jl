@@ -56,11 +56,9 @@ function uncertainty_learning_model(;
 
     # Build full dictionary of model parameters and mutation distribution.
     params = merge(
-
         Dict(model_parameters),  
 
         @dict steps_per_round tick low_payoff high_payoff nbehaviors nteachers trial_idx env_uncertainty optimal_behavior expected_payoffs tau fixated stop
-
     )
 
     # Initialize model. 
@@ -89,6 +87,7 @@ function uncertainty_learning_model(;
                 behavior_count = zeros(Int64, nbehaviors),
                 # social_learner = sample([true, false]),
                 social_learner = social_learner,
+                prev_social_learner = social_learner
             ), 
             model
         )
@@ -112,6 +111,7 @@ and track expected payoffs.
     # generate payoff.
     behavior::Int
     social_learner::Bool
+    prev_social_learner::Bool
 
     # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
     # some agents' payoffs to be higher just because they performed a behavior
@@ -257,6 +257,7 @@ function evolve!(model::ABM)
     for (idx, social_learner) in enumerate(parents_social_learner_trait)
 
         child = agents_coll[idx]
+        child.prev_social_learner = copy(social_learner)
         child.social_learner = social_learner
 
         if child.social_learner

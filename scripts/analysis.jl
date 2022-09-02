@@ -823,3 +823,128 @@ function make_line_elements(; elemwidth = 11pt, linelen = 1.75inch,
         draw(PDF(joinpath(figuredir, "$(string(line_style)).pdf")), p)
     end
 end
+
+function make_payoffs_timeseries(u, pilow, B, L; numagents = 1000, whensteps = 1)
+
+    # homogenous_adata = [(:behavior, countmap), (:social_learner, mean),
+    #                     (:prev_net_payoff, mean)]
+
+    mdata = [:env_uncertainty, :trial_idx, :high_payoff,
+             :low_payoff, :nbehaviors, :steps_per_round, :optimal_behavior]
+
+    stopcond(model, step) = model.stop
+
+    # when = (model, step) -> (
+    #                ((step + 1) % whensteps == 0)  ||
+    #                (step == 0) ||
+    #                stopcond(model, step)
+    #         )
+
+    # # 100 generations for all-asocial and all-social homogenous populations.
+    # maxits_homogenous = 100 * L
+
+    # println("Running asocial learner series")
+    # # First generate all-asocial learner series.
+    # asoc_model = uncertainty_learning_model(;
+    #     numagents, env_uncertainty = u, low_payoff = pilow,
+    #     nbehaviors = B, steps_per_round = L,
+    #     init_social_learner_prevalence = 0.0
+    # )
+    # asoc_adf, asoc_mdf = run!(asoc_model, agent_step!, model_step!, maxits_homogenous;
+    #                           adata = homogenous_adata, mdata, when)
+
+    # println("Running social learner series")
+    # # Next, generate all-social learner series.
+    # soc_model = uncertainty_learning_model(;
+    #     numagents, env_uncertainty = u, low_payoff = pilow,
+    #     nbehaviors = B, steps_per_round = L,
+    #     init_social_learner_prevalence = 1.0
+    # )
+    # soc_adf, soc_mdf = run!(soc_model, agent_step!, model_step!, maxits_homogenous;
+    #                         adata = homogenous_adata, mdata, when)
+
+    println("Running simulations")
+    # Finally, run standard simulations but with updated adata to track
+    # mean payoffs for population and for asocial and social learners.
+
+    # Define functions and adata reporter to aggregate asocial and social payoffs.
+    function asoc_payoff_mean(avec)
+        return mean(filter(a -> !a.social_learner, avec))
+    end
+    function soc_payoff_mean(avec)
+        return mean(filter(a -> a.social_learner, avec))
+    end
+    is_asoc(a) = !a.prev_social_learner
+    is_soc(a) = a.prev_social_learner
+
+    nanmean(x) = mean(filter(!isnan, x))
+    sim_adata = [
+        (:behavior, countmap),
+        (:social_learner, mean),
+        # (:net_payoff, mean),
+        # (:net_payoff, mean, is_asoc),
+        # (:net_payoff, mean, is_soc),
+        (:prev_net_payoff, mean),
+        (:prev_net_payoff, mean, is_asoc),
+        (:prev_net_payoff, mean, is_soc)
+    ]
+
+    whensteps = L
+    when = (model, step) -> (
+                   ((step) % whensteps == 0)  ||  (step == 0) || stopcond(model, step)
+               )
+
+    sim_model = uncertainty_learning_model(;
+        numagents, env_uncertainty = u, low_payoff = pilow,
+        nbehaviors = B, steps_per_round = L,
+        init_social_learner_prevalence = 0.5
+    )
+    sim_adf, sim_mdf = run!(sim_model, agent_step!, model_step!, stopcond;
+                    adata = sim_adata, mdata, when)
+
+    # return asoc_adf, soc_adf, sim_adf
+    return sim_adf, sim_mdf
+end
+
+
+function plot_payoff_timeseries(sim_adf, L)
+
+    set_default_plot_size(9inch, 5inch)
+
+    payseries_colors = ["orange", "skyblue", "purple", "pink"]
+
+    # sim_asoc_tag = :mean_net_payoff_is_asoc
+    # sim_soc_tag = :mean_net_payoff_is_soc
+    # sim_mean_tag = :mean_net_payoff
+    sim_adf_copy = copy(sim_adf)
+    sim_asoc_tag = :mean_prev_net_payoff_is_asoc
+    sim_soc_tag = :mean_prev_net_payoff_is_soc
+    sim_mean_tag = :mean_prev_net_payoff
+    for tag in [sim_asoc_tag, sim_soc_tag, sim_mean_tag]
+        sim_adf_copy[!, tag] = sim_adf_copy[!, tag] / L
+    end
+
+    plot(
+         layer(sim_adf_copy, x=:step, y=:mean_social_learner, Geom.line, Geom.point,
+               style(line_style=[:solid]),
+               Theme(default_color=payseries_colors[4])),
+         layer(sim_adf_copy, x=:step, y=sim_asoc_tag, Geom.point, Geom.line,
+               style(line_style=[:dot]),
+               Theme(default_color=payseries_colors[1])),
+         layer(sim_adf_copy, x=:step, y=sim_soc_tag, Geom.line, Geom.point,
+               style(line_style=[:ldash]),
+               Theme(default_color=payseries_colors[2])),
+         layer(sim_adf_copy, x=:step, y=sim_mean_tag, Geom.line, Geom.point,
+               style(line_style=[:solid]),
+               Theme(default_color=payseries_colors[3])),
+
+         Guide.manual_color_key("Legend",
+                                ["Asocial Payoffs", "Social Payoffs",
+                                 "Mean Payoffs", "Soc. learn. prevalence"],
+                                payseries_colors),
+
+         Guide.xlabel("Step"),
+         Guide.ylabel("Payoffs or prevalence"),
+         PROJECT_THEME
+    )
+end
