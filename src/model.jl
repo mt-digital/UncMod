@@ -87,8 +87,8 @@ function uncertainty_learning_model(;
                 behavior = 0,  # Doesn't matter, will be selected at random at init.
                 ledger = zeros(Float64, nbehaviors),
                 behavior_count = zeros(Int64, nbehaviors),
-                # social_learner = sample([true, false]),
                 social_learner = social_learner,
+                prev_social_learner = social_learner
             ), 
             model
         )
@@ -112,6 +112,7 @@ and track expected payoffs.
     # generate payoff.
     behavior::Int
     social_learner::Bool
+    prev_social_learner::Bool
 
     # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
     # some agents' payoffs to be higher just because they performed a behavior
@@ -184,9 +185,20 @@ end
 """
 function model_step!(model)
 
-    for (idx, agent) in enumerate(collect(allagents(model)))
-        prevledg = 0.0
+    agentscoll = collect(allagents(model))
+
+    # if (model.tick % model.steps_per_round == 1) && (model.tick > 1)
+    #     for agent in agentscoll
      
+    #         agent.prev_net_payoff = 0
+    #         # agent.net_payoff = 0
+    #     end
+    # end
+
+    for (idx, agent) in enumerate(agentscoll)
+
+        prevledg = 0.0
+
         # Accumulate, record, and reset step payoff values.
         agent.net_payoff += agent.step_payoff
         agent.prev_net_payoff = copy(agent.net_payoff)
@@ -249,24 +261,27 @@ learning strategy with mutation; (2) die off.
 """
 function evolve!(model::ABM)
 
+    # agents_coll = deepcopy(collect(allagents(model)))
+    # parents = deepcopy(select_parents(model))
+
     agents_coll = collect(allagents(model))
+    agents_ledgers_copy = map(a -> copy(a.ledger), agents_coll)
 
     parents = select_parents(model)
-    parents_social_learner_trait = map(parent -> parent.social_learner, parents)
+    parents_social_learner_trait = map(parent -> copy(parent.social_learner), parents)
 
     for (idx, social_learner) in enumerate(parents_social_learner_trait)
 
         child = agents_coll[idx]
+        child.prev_social_learner = child.social_learner
         child.social_learner = social_learner
 
         if child.social_learner
-            agentsvec = collect(allagents(model)) 
-            teachers = sample(agentsvec, model.nteachers, replace=false)
-
+            # agentsvec = collect(allagents(model)) 
+            teachers = sample(agents_coll, model.nteachers, replace=false)
             teacher_idx = argmax(map(t -> t.net_payoff, teachers))
-            teacher = teachers[teacher_idx]
-            
-            child.ledger = copy(teacher.ledger)
+            teacher_aid = teachers[teacher_idx].id
+            child.ledger = agents_ledgers_copy[teacher_aid]
             # and the count of observations of each behavior is reset to 1.
             child.behavior_count = repeat([1], model.nbehaviors)
 
