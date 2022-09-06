@@ -183,18 +183,20 @@ function aggregate_final_timestep(joined_df::DataFrame, yvar::Symbol;
                                   socdf = false, generations = 1000
     )
 
-    if socdf
-        # Hack to deal with social learning dataframe problems.
-        # println("doing filter")
-        # print(last(joined_df, 10))
-        # print(unique(joined_df.step))
-        # if joined_df.nbehaviors[1] == 10
-        #     filter!(r -> r.step == r.steps_per_round * 5000, joined_df)
-        # else
-        filter!(r -> r.step == (r.steps_per_round * generations), joined_df)
-        # end
+    # if socdf
+    #     # Hack to deal with social learning dataframe problems.
+    #     # println("doing filter")
+    #     # print(last(joined_df, 10))
+    #     # print(unique(joined_df.step))
+    #     # if joined_df.nbehaviors[1] == 10
+    #     #     filter!(r -> r.step == r.steps_per_round * 5000, joined_df)
+    #     # else
+    #     filter!(r -> r.step == (r.steps_per_round * generations), joined_df)
+    #     # end
 
-    end
+    # end
+
+    println(joined_df)
 
     # Groupby ensemble, find maximum time step in each ensemble.
     gb = groupby(joined_df, :ensemble)
@@ -824,7 +826,9 @@ function make_line_elements(; elemwidth = 11pt, linelen = 1.75inch,
     end
 end
 
-function make_payoffs_timeseries(u, pilow, B, L; numagents = 1000, whensteps = 1)
+function make_payoffs_timeseries(u, pilow, B, L; ngenerations = 30,        
+                                 numagents = 1000, whensteps = 1, 
+                                 init_sl = 0.5)
 
     # homogenous_adata = [(:behavior, countmap), (:social_learner, mean),
     #                     (:prev_net_payoff, mean)]
@@ -832,8 +836,13 @@ function make_payoffs_timeseries(u, pilow, B, L; numagents = 1000, whensteps = 1
     mdata = [:env_uncertainty, :trial_idx, :high_payoff,
              :low_payoff, :nbehaviors, :steps_per_round, :optimal_behavior]
 
-    stopcond(model, step) = model.stop
-
+    # if init_sl ∈ [0.0, 1.0]
+    #     println("in here")
+    stopcond(model, step) = step == L * ngenerations
+    # else
+        # stopcond(model, step) = model.stop
+    # end
+    println(stopcond)
     # when = (model, step) -> (
     #                ((step + 1) % whensteps == 0)  ||
     #                (step == 0) ||
@@ -881,23 +890,23 @@ function make_payoffs_timeseries(u, pilow, B, L; numagents = 1000, whensteps = 1
     sim_adata = [
         (:behavior, countmap),
         (:social_learner, mean),
-        # (:net_payoff, mean),
-        # (:net_payoff, mean, is_asoc),
-        # (:net_payoff, mean, is_soc),
         (:prev_net_payoff, mean),
         (:prev_net_payoff, mean, is_asoc),
         (:prev_net_payoff, mean, is_soc)
     ]
 
     whensteps = L
+
     when = (model, step) -> (
-                   ((step) % whensteps == 0)  ||  (step == 0) || stopcond(model, step)
-               )
+        ((step) % whensteps == 0)  ||  
+        (step == 0) || 
+        stopcond(model, step)
+    )
 
     sim_model = uncertainty_learning_model(;
         numagents, env_uncertainty = u, low_payoff = pilow,
         nbehaviors = B, steps_per_round = L,
-        init_social_learner_prevalence = 0.5
+        init_social_learner_prevalence = init_sl
     )
     sim_adf, sim_mdf = run!(sim_model, agent_step!, model_step!, stopcond;
                     adata = sim_adata, mdata, when)
