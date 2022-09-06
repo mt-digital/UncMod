@@ -94,7 +94,7 @@ function expected_individual_payoff(;
             for params in params_list
         ]
 
-        adf, mdf = ensemblerun!(models, agent_step!, model_step!, L;
+        adf, mdf = ensemblerun!(models, agent_step!, model_step!, 10*L;
                                 adata, mdata, 
                                 when = 
                                     (model, step) -> ( 
@@ -102,6 +102,7 @@ function expected_individual_payoff(;
                                         # (step == 0)
                                 ), 
                                 parallel = true)
+        return adf, mdf
 
         d[L] = innerjoin(adf, mdf, on = [:ensemble, :step])
     end
