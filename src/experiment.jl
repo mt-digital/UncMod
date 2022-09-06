@@ -85,7 +85,7 @@ function experiment(ntrials = 10;
         models, agent_step!, model_step!, stop_condfn; 
         adata, mdata, 
         when = (model, step) -> ( 
-            ((step + 1) % whensteps == 0)  ||  (step == 0) || stop_condfn(model, step) 
+            (step % model.properties[:steps_per_round] == 0)  ||  (step == 0) || stop_condfn(model, step) 
         ),
         parallel = true,
         batch_size = max(length(models) ÷ nprocs(), 1)

@@ -155,9 +155,6 @@ function main()
     nameargs = copy(parsed_args)
 
     rmkeys = ["env_uncertainty", "low_payoff"]
-    # if experiment == "expected-payoff"
-    #     rmkeys = [rmkeys..., "low_payoff", "high_payoff"]
-    # end
 
     for rmkey in rmkeys
         delete!(nameargs, rmkey)
