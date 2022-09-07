@@ -35,14 +35,13 @@ function experiment(ntrials = 10;
                     tau = 0.1,
                     nteachers = 5,
                     init_social_learner_prevalence = 0.5,
-                    stop_cond = :default
-                    # env_uncertainty = collect(0.0:0.1:1.0)
+                    stop_cond = :fixation_plus_onegen
     )
     
     trial_idx = collect(1:ntrials)
 
     params_list = dict_list(
-        @dict steps_per_round nbehaviors high_payoff low_payoff trial_idx env_uncertainty tau nagents nteachers init_social_learner_prevalence
+        @dict steps_per_round nbehaviors high_payoff low_payoff trial_idx env_uncertainty tau nteachers init_social_learner_prevalence
     )
 
     # We are not interested in cases where high expected payoff is less than
@@ -62,7 +61,7 @@ function experiment(ntrials = 10;
 
     models = [
         uncertainty_learning_model(;
-            nagents = nagents, 
+            numagents = nagents, 
             params...)
         for params in params_list
     ]
@@ -90,6 +89,7 @@ function experiment(ntrials = 10;
         parallel = true,
         batch_size = max(length(models) ÷ nprocs(), 1)
     )
+
 
     println("About to return adf, mdf!!!")
 
