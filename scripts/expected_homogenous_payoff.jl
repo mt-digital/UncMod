@@ -51,7 +51,6 @@ function expected_social_payoff(;env_uncertainty = collect(0.0:0.1:1.0), ntrials
 
         maxits = L * 100  # run 100 generations. Payoffs should stabilize by then.
         batch_size = max(length(models) ÷ nprocs(), 1)
-        println(batch_size)
         adf, mdf = ensemblerun!(models, agent_step!, model_step!, maxits;
                                 adata, mdata, 
                                 when = (_, step) -> step % L == 0,
@@ -66,7 +65,7 @@ function expected_social_payoff(;env_uncertainty = collect(0.0:0.1:1.0), ntrials
 end
 
 
-function expected_individual_payoff(;
+function expected_asocial_payoff(;
         low_payoff = [0.1,0.45,0.8], nbehaviors = [2,4], 
         steps_per_round_vec = [1,2,4,8], 
     )
@@ -88,43 +87,49 @@ function expected_individual_payoff(;
 
         models = [
             uncertainty_learning_model(
-                nagents = 10000; init_social_learner_prevalence = 0.0, 
+                nagents = 1000; init_social_learner_prevalence = 0.0, 
                 params...
             )
             for params in params_list
         ]
 
-        adf, mdf = ensemblerun!(models, agent_step!, model_step!, 10*L;
+        adf, mdf = ensemblerun!(models, agent_step!, model_step!, 10000*L;
                                 adata, mdata, 
                                 when = 
                                     (model, step) -> ( 
-                                        (step % L == 0)  #||  
+                                        (step % L == 0)  # ||  
                                         # (step == 0)
                                 ), 
                                 parallel = true)
-        return adf, mdf
+        # return adf, mdf
+        joined_df = innerjoin(adf, mdf, on = [:ensemble, :step])
+        filter!(r -> r.step > 0, joined_df)
+        gb = groupby(joined_df, [:ensemble, :env_uncertainty, :low_payoff,
+                                 :nbehaviors, :steps_per_round])
 
-        d[L] = innerjoin(adf, mdf, on = [:ensemble, :step])
+        d[L] = combine(gb, :mean_prev_net_payoff => geomean => :geomean_payoff)
+
     end
     
     return vcat(values(d)...)
 end
 
 
-function all_expected_individual_payoffs(; savefile = "expected_individual.jld2")
-    df_B_2_4 = expected_individual_payoff()
-    df_B10 = expected_individual_payoff(;nbehaviors = [10], 
+function all_expected_asocial_payoffs(; savefile = "expected_asocial.jld2")
+
+    df_B_2_4 = expected_asocial_payoff()
+    df_B10 = expected_asocial_payoff(;nbehaviors = [10], 
                                          steps_per_round_vec = [1,5,10,20])
 
     df = vcat(df_B_2_4, df_B10)
-    df = df[df.step .!== 0, 
-              [:low_payoff, :nbehaviors, :steps_per_round, :mean_prev_net_payoff]]
                                      
     if !isnothing(savefile)
         @save savefile df
     end
 
     println("saved")
+
+    return df
 end
 
 

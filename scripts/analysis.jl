@@ -98,6 +98,7 @@ function main_SL_result(yvar = :mean_social_learner;
                         figuredir = "papers/UncMod/Figures", 
                         nbehaviorsvec=[2, 4, 10], 
                         datadir = "data/develop", syncfile_tag = nothing,
+                        sl_expected_dir = "data/sl_expected",
                         nfiles = 100, annotate = true)  # Assumes 10 per trial, so 1000 trials.
 
     for nbehaviors in nbehaviorsvec
@@ -120,7 +121,7 @@ function main_SL_result(yvar = :mean_social_learner;
         end
 
         plot_over_u_sigmoids(aggdf, nbehaviors, yvar; 
-                             figuredir, nfiles, opacity, annotate)
+                             figuredir, nfiles, opacity, annotate, sl_expected_dir)
     end
 end
 
@@ -183,34 +184,38 @@ function aggregate_final_timestep(joined_df::DataFrame, yvar::Symbol;
                                   socdf = false, generations = 1000
     )
 
-    # if socdf
-    #     # Hack to deal with social learning dataframe problems.
-    #     # println("doing filter")
-    #     # print(last(joined_df, 10))
-    #     # print(unique(joined_df.step))
-    #     # if joined_df.nbehaviors[1] == 10
-    #     #     filter!(r -> r.step == r.steps_per_round * 5000, joined_df)
-    #     # else
-    #     filter!(r -> r.step == (r.steps_per_round * generations), joined_df)
-    #     # end
+    if socdf
+        # Remove init generation when there was no social learning.
+        filter!(r -> r.step > 10*r.steps_per_round, joined_df)
+        gb = groupby(joined_df, [:ensemble, :env_uncertainty, :low_payoff,
+                                 :nbehaviors, :steps_per_round])
 
-    # end
+        cb = combine(gb, :mean_prev_net_payoff => geomean => :geomean_payoff)
+    
+        gb = groupby(cb, [:env_uncertainty, :low_payoff, :nbehaviors, :steps_per_round])
 
-    println(joined_df)
+        cdf = combine(gb, :geomean_payoff => mean => :geomean_payoff)
+        
+    else
 
-    # Groupby ensemble, find maximum time step in each ensemble.
-    gb = groupby(joined_df, :ensemble)
+        gb = groupby(joined_df, :ensemble)
+        cb = combine(gb, :step => maximum => :step)
 
-    cb = combine(gb, :step => maximum => :step)
+        # Match ensemble and step, left join w combined on left,
+        # so only rows from last time step remain.
+        endstepdf = leftjoin(cb, joined_df; on = [:ensemble, :step])
 
-    # Match ensemble and step, left join w combined on left,
-    # so only rows from last time step remain.
-    endstepdf = leftjoin(cb, joined_df; on = [:ensemble, :step])
+        groupbydf = groupby(endstepdf, 
+                            [:env_uncertainty, :steps_per_round, :low_payoff]);
 
-    groupbydf = groupby(endstepdf, 
-                        [:env_uncertainty, :steps_per_round, :low_payoff]);
-
-    cdf = combine(groupbydf, yvar => mean => yvar)
+        # Use geometric mean for payoffs to compare with geometric
+        # expected homogenous all-soc or all-asoc population payoffs/viabilities.
+        if yvar == :mean_prev_net_payoff
+            cdf = combine(groupbydf, yvar => geomean => :geomean_payoff)
+        else
+            cdf = combine(groupbydf, yvar => mean => yvar )
+        end
+    end
 
     cdf.steps_per_round = categorical(cdf.steps_per_round)
 
@@ -253,7 +258,7 @@ end
 
 
 function load_idf_sdf(nbehaviors, 
-                      indfile = "expected_individual.jld2",
+                      indfile = "expected_asocial.jld2",
                       soc_root = "data/aggsocdf_")
 
     idf = load(indfile)["df"]
@@ -273,19 +278,15 @@ function calc_one_soc_ind_equal(idf, sdf, low_payoff, nbehaviors, steps_per_roun
                  (sdf.steps_per_round .== steps_per_round),
                  :]
 
-    # println(sdflim)
-    
     ival = idf[(idf.low_payoff .== low_payoff) .&&
                   (idf.nbehaviors .== nbehaviors) .&&
-                  (idf.steps_per_round .== steps_per_round), :].mean_prev_net_payoff
+                  (idf.steps_per_round .== steps_per_round), :].geomean_payoff
     ival /= steps_per_round
-    # println(ival)
 
-    svals = sdflim.mean_prev_net_payoff ./ steps_per_round
-    # println(svals)
+    svals = sdflim.geomean_payoff ./ steps_per_round
 
+    # Difference between geometric expected and individual payoffs. 
     d = svals .- ival
-    # println(d)
 
     # If the data cross zero find the x-intercept using slope-intercept
     # formula for the line segment between datapoints where data first crosses
@@ -294,20 +295,29 @@ function calc_one_soc_ind_equal(idf, sdf, low_payoff, nbehaviors, steps_per_roun
     if count(diff_lt0) > 0
         
         firstnegindex = argmax(diff_lt0)
-        @assert firstnegindex > 1 "Unexpected negative difference in first expected social value"
+        if firstindex == 1
+            println(
+                "WARNING: Unexpected negative difference in first expected social value: $(d[1])"
+            )
+        # @assert firstnegindex > 1 "Unexpected negative difference in first expected social value: $(d[1])"
+        end
 
-        lastposindex = firstnegindex - 1
-        
-        du = 0.1  # Resolution over environmental variability in the model.
-        b = d[lastposindex]  # Impose axes over the two crossing datapoints.
-        m = d[firstnegindex] - b  # Calculate slope over one unit of x.
-        xint = -b / m
-        
-        u = sdflim.env_uncertainty
-        # The point where u crosses zero is then the last u for which it was
-        # non-negative, plus the x-intercept in terms of the variable 
-        # substitution above, scaled appropriately to transform back to u.
-        u_eq = u[lastposindex] + (xint * du)
+        if firstnegindex > 1
+            lastposindex = firstnegindex - 1
+            
+            du = 0.1  # Resolution over environmental variability in the model.
+            b = d[lastposindex]  # Impose axes over the two crossing datapoints.
+            m = d[firstnegindex] - b  # Calculate slope over one unit of x.
+            xint = -b / m
+            
+            u = sdflim.env_uncertainty
+            # The point where u crosses zero is then the last u for which it was
+            # non-negative, plus the x-intercept in terms of the variable 
+            # substitution above, scaled appropriately to transform back to u.
+            u_eq = u[lastposindex] + (xint * du)
+        else
+            u_eq = 0.0
+        end
         
     # ...otherwise find the first absolute difference within a threshold, 
     # incrementing the threshold until there is at least one difference
@@ -355,6 +365,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                                        low_payoffs = [0.1, 0.45, 0.8],
                                        figuredir = ".", nfiles = 10, 
                                        annotate = true,
+                                       sl_expected_dir = "data/sl_expected",
                                        opacity = 0.8)
     df = final_agg_df
 
@@ -367,20 +378,13 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             println("Using synced expected social learner payoffs file $aggsoc_file")
             aggsocdf = load(aggsoc_file)["aggsocdf"]
         else
-            socdf = load_random_df("data/sl_expected", nbehaviors, nfiles)
+            socdf = load_random_df(sl_expected_dir, nbehaviors, nfiles)
 
             aggsocdf = aggregate_final_timestep(socdf, yvar; socdf = true)
 
             @save aggsoc_file aggsocdf
         end
 
-        # if nbehaviors ∈ [2, 4]
-        #     filter!(r -> r.steps_per_round ∈ [1, 8], df)
-        #     filter!(r -> r.steps_per_round ∈ [1, 8], aggsocdf)
-        # else
-        #     filter!(r -> r.steps_per_round ∈ [1, 20], df)
-        #     filter!(r -> r.steps_per_round ∈ [1, 20], aggsocdf)
-        # end
     end
 
     for low_payoff in low_payoffs 
@@ -499,17 +503,17 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
         else
 
             for r in eachrow(thisdf)
-                r.mean_prev_net_payoff /= convert(Float64, r.steps_per_round)
+                r.geomean_payoff /= convert(Float64, r.steps_per_round)
             end
 
             # Prepare lines for expected individual learner payoffs, ⟨π_I⟩.
-            indiv_file = "expected_individual.jld2"
-            if !isfile(indiv_file)
+            asoc_file = "expected_asocial.jld2"
+            if !isfile(asoc_file)
                 println("Expected individual payoffs not found, generating now...")
                 # Calculates expected payoff for all parameter combos & saves.
-                all_expected_individual_payoffs();
+                all_expected_asocial_payoffs();
             end
-            indiv_df = load(indiv_file)["df"]
+            asoc_df = load(asoc_file)["df"]
             # XXX TODO need to get rid of this, but when I did code stopped 
             # working, but wasn't worth figuring out why at the time.
             if nbehaviors ∈ [2, 4]
@@ -517,17 +521,17 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             else
                 spr = [1, 5, 10, 20]
             end
-            indiv_df = filter(r -> (r.low_payoff == low_payoff) && 
+            asoc_df = filter(r -> (r.low_payoff == low_payoff) && 
                                    (r.nbehaviors == nbehaviors) &&
                                    (r.steps_per_round ∈ spr), 
-                              indiv_df)
+                              asoc_df)
             
-            for r in eachrow(indiv_df)
-                r.mean_prev_net_payoff /= r.steps_per_round
+            for r in eachrow(asoc_df)
+                r.geomean_payoff /= r.steps_per_round
             end
 
-            expected_individual_intercepts = 
-                sort(indiv_df, :steps_per_round).mean_prev_net_payoff
+            expected_asocial_intercepts = 
+                sort(asoc_df, :steps_per_round).geomean_payoff
 
             lowpay_aggsocdf = 
                 filter(r -> (r.low_payoff == low_payoff) &&
@@ -535,7 +539,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                        aggsocdf)
 
             for r in eachrow(lowpay_aggsocdf)
-                r.mean_prev_net_payoff /= convert(Float64, r.steps_per_round)
+                r.geomean_payoff /= convert(Float64, r.steps_per_round)
             end
 
             idf, sdf = load_idf_sdf(nbehaviors)
@@ -556,10 +560,10 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             SEED_COLORS_TRANS = [RGBA(c, 0.8) for c in SEED_COLORS]
 
             p = plot(
-                     layer(thisdf, x=:env_uncertainty, y=yvar,  
+                     layer(thisdf, x=:env_uncertainty, y=:geomean_payoff,  
                            color = :steps_per_round, Geom.line, 
                            style(line_width=3.0pt)), # Geom.point),
-                     yintercept = expected_individual_intercepts,
+                     yintercept = expected_asocial_intercepts,
                      Geom.hline(; 
                                 # color=[RGBA(sc, opacity) for sc in SEED_COLORS],
                                 color=SEED_COLORS_TRANS,
@@ -568,7 +572,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                                 #        SEED_COLORS[3],
                                 #        SEED_COLORS[4]], 
                                 style=:ldash, size=2.5pt),
-                     layer(lowpay_aggsocdf, x=:env_uncertainty, y=yvar, Geom.line,
+                     layer(lowpay_aggsocdf, x=:env_uncertainty, y=:geomean_payoff, Geom.line,
                            # Geom.point,
                            color = :steps_per_round, 
                            style(#$point_shapes=[diamond],
@@ -779,7 +783,6 @@ function calculate_pct_fixation(df::DataFrame)
     # print(last(df, 20))
 
     by_ensemble = groupby(df, [:nbehaviors, :ensemble])
-    # println(by_ensemble)
 
     cb = combine(by_ensemble, :step => maximum => :step)
 
@@ -836,53 +839,17 @@ function make_payoffs_timeseries(u, pilow, B, L; ngenerations = 30,
     mdata = [:env_uncertainty, :trial_idx, :high_payoff,
              :low_payoff, :nbehaviors, :steps_per_round, :optimal_behavior]
 
-    # if init_sl ∈ [0.0, 1.0]
-    #     println("in here")
-    stopcond(model, step) = step == L * ngenerations
-    # else
-        # stopcond(model, step) = model.stop
-    # end
-    println(stopcond)
-    # when = (model, step) -> (
-    #                ((step + 1) % whensteps == 0)  ||
-    #                (step == 0) ||
-    #                stopcond(model, step)
-    #         )
-
-    # # 100 generations for all-asocial and all-social homogenous populations.
-    # maxits_homogenous = 100 * L
-
-    # println("Running asocial learner series")
-    # # First generate all-asocial learner series.
-    # asoc_model = uncertainty_learning_model(;
-    #     numagents, env_uncertainty = u, low_payoff = pilow,
-    #     nbehaviors = B, steps_per_round = L,
-    #     init_social_learner_prevalence = 0.0
-    # )
-    # asoc_adf, asoc_mdf = run!(asoc_model, agent_step!, model_step!, maxits_homogenous;
-    #                           adata = homogenous_adata, mdata, when)
-
-    # println("Running social learner series")
-    # # Next, generate all-social learner series.
-    # soc_model = uncertainty_learning_model(;
-    #     numagents, env_uncertainty = u, low_payoff = pilow,
-    #     nbehaviors = B, steps_per_round = L,
-    #     init_social_learner_prevalence = 1.0
-    # )
-    # soc_adf, soc_mdf = run!(soc_model, agent_step!, model_step!, maxits_homogenous;
-    #                         adata = homogenous_adata, mdata, when)
+    stopcond(model, step) = model.stop
 
     println("Running simulations")
-    # Finally, run standard simulations but with updated adata to track
-    # mean payoffs for population and for asocial and social learners.
 
     # Define functions and adata reporter to aggregate asocial and social payoffs.
-    function asoc_payoff_mean(avec)
-        return mean(filter(a -> !a.social_learner, avec))
-    end
-    function soc_payoff_mean(avec)
-        return mean(filter(a -> a.social_learner, avec))
-    end
+    # function asoc_payoff_mean(avec)
+    #     return mean(filter(a -> !a.social_learner, avec))
+    # end
+    # function soc_payoff_mean(avec)
+    #     return mean(filter(a -> a.social_learner, avec))
+    # end
     is_asoc(a) = !a.prev_social_learner
     is_soc(a) = a.prev_social_learner
 
@@ -916,44 +883,123 @@ function make_payoffs_timeseries(u, pilow, B, L; ngenerations = 30,
 end
 
 
-function plot_payoff_timeseries(sim_adf, L)
+function plot_payoff_timeseries(sim_adf, sim_mdf, env_uncertainty, low_payoff, 
+                                nbehaviors, L; gma_period = 5, figuredir = nothing)
 
     set_default_plot_size(9inch, 5inch)
 
     payseries_colors = ["orange", "skyblue", "purple", "pink"]
 
-    # sim_asoc_tag = :mean_net_payoff_is_asoc
-    # sim_soc_tag = :mean_net_payoff_is_soc
-    # sim_mean_tag = :mean_net_payoff
-    sim_adf_copy = copy(sim_adf)
+    # Copy sim_adf so transformations for plotting don't affect data.
+    sim_adf = copy(sim_adf)
+    sim_adf.generation = sim_adf.step / L
+    println(first(sim_adf))
     sim_asoc_tag = :mean_prev_net_payoff_is_asoc
     sim_soc_tag = :mean_prev_net_payoff_is_soc
     sim_mean_tag = :mean_prev_net_payoff
     for tag in [sim_asoc_tag, sim_soc_tag, sim_mean_tag]
-        sim_adf_copy[!, tag] = sim_adf_copy[!, tag] / L
+        sim_adf[!, tag] = gma(sim_adf[!, tag], gma_period) / L
     end
 
-    plot(
-         layer(sim_adf_copy, x=:step, y=:mean_social_learner, Geom.line, Geom.point,
+    # Load homogenous expected payoff files.
+    asocfile = "expected_asocial.jld2"
+    asocdf = load(asocfile)["df"]
+    expected_asoc = first(@subset(asocdf, 
+                                  :low_payoff .== low_payoff,
+                                  :nbehaviors .== nbehaviors,
+                                  :steps_per_round .== L).geomean_payoff) / L
+    
+    socfile = "data/aggsocdf_$nbehaviors.jld2"
+    socdf = load(socfile)["aggsocdf"]
+    expected_soc = first(@subset(socdf,
+                                 :env_uncertainty .== env_uncertainty,
+                                 :low_payoff .== low_payoff,
+                                 :nbehaviors .== nbehaviors,
+                                 :steps_per_round .== L).geomean_payoff) / L
+
+    yintercept = [expected_asoc, expected_soc]
+    println(yintercept)
+
+    # Find where optimal behavior changed between generations.
+    optbeh = sim_mdf.optimal_behavior
+    optchange_idxs = filter(x -> !isnothing(x),
+                            [optbeh[ii+1] ≠ optbeh[ii] ? ii + 1 : nothing 
+                             for ii in 1:(length(optbeh) - 1)])
+
+    xintercept = sim_adf.generation[optchange_idxs]
+
+    yticks = 0:0.1:1.0
+
+    p = plot(
+
+         layer(sim_adf, x=:generation, y=:mean_social_learner, Geom.line, Geom.point,
                style(line_style=[:solid]),
                Theme(default_color=payseries_colors[4])),
-         layer(sim_adf_copy, x=:step, y=sim_asoc_tag, Geom.point, Geom.line,
+         layer(sim_adf, x=:generation, y=sim_asoc_tag, Geom.point, Geom.line,
                style(line_style=[:dot]),
                Theme(default_color=payseries_colors[1])),
-         layer(sim_adf_copy, x=:step, y=sim_soc_tag, Geom.line, Geom.point,
+         layer(sim_adf, x=:generation, y=sim_soc_tag, Geom.line, Geom.point,
                style(line_style=[:ldash]),
                Theme(default_color=payseries_colors[2])),
-         layer(sim_adf_copy, x=:step, y=sim_mean_tag, Geom.line, Geom.point,
+         layer(sim_adf, x=:generation, y=sim_mean_tag, Geom.line, Geom.point,
                style(line_style=[:solid]),
                Theme(default_color=payseries_colors[3])),
 
-         Guide.manual_color_key("Legend",
-                                ["Asocial Payoffs", "Social Payoffs",
-                                 "Mean Payoffs", "Soc. learn. prevalence"],
-                                payseries_colors),
+         xintercept = xintercept,
+         Geom.vline(; color = "lightgrey", style=:solid, size=0.5pt),
 
-         Guide.xlabel("Step"),
+         yintercept = yintercept,
+         Geom.hline(; color = [payseries_colors[1], payseries_colors[2]],
+                      # style = [:dot, :ldash],
+                      size = 1.5pt),
+
+         Guide.yticks(ticks=yticks),
+
+         Guide.manual_color_key(
+            "Legend",
+                                
+            ["GMA(Simulated Asocial Payoffs, 5)", "Geom. Expect. Homog. Asoc.", 
+             "GMA(Simulated Social Payoffs, 5)", "Geom. Expect. Homog. Soc.",
+             "GMA(Mean Payoffs, 5)", "Soc. learn. prevalence", "Environmental change"
+             ],
+            [payseries_colors[1], payseries_colors[1], payseries_colors[2], 
+             payseries_colors[2], payseries_colors[3], payseries_colors[4], 
+             "lightgrey"];
+
+            shape=[Shape.circle, Shape.hline, Shape.circle, Shape.hline, 
+                   Shape.circle, Shape.circle, Shape.vline]
+        ),
+
+         Guide.xlabel("Generation"),
          Guide.ylabel("Payoffs or prevalence"),
+         Guide.title("u = $env_uncertainty, pi_low = $low_payoff, B = $nbehaviors, L = $L"),
          PROJECT_THEME
     )
+
+    if !isnothing(figuredir)
+        
+        draw(
+             PDF(joinpath(
+                 figuredir, 
+                 "geopayseries_u=$env_uncertainty-lowpayoff=$low_payoff-nbehaviors=$nbehaviors-L=$L.pdf"), 
+                 8.0inch, 4.0inch), 
+            p
+        )
+    end
+end
+
+
+#: Geometric moving average over a vector.
+function gma(vec, period)
+    veclen = length(vec)
+
+    return [
+        ii > period ? 
+        # If ii exceeds period, subtract period from ii for start idx for geomean...
+        geomean(vec[(ii - period + 1):ii]) : 
+        # ...if ii has not yet exceeded period, take geomean of elements from 1 to ii.
+        geomean(vec[1:ii])
+
+        for ii in 1:veclen
+    ]
 end

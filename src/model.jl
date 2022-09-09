@@ -257,7 +257,7 @@ function evolve!(model::ABM)
     for (idx, social_learner) in enumerate(parents_social_learner_trait)
 
         child = agents_coll[idx]
-        child.prev_social_learner = copy(social_learner)
+        child.prev_social_learner = copy(child.social_learner)
         child.social_learner = social_learner
 
         if child.social_learner
