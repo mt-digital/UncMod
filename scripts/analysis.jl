@@ -5,6 +5,7 @@ using CategoricalArrays
 using Chain
 
 using DataFrames
+using DataFramesMeta
 using Gadfly, Compose, LaTeXStrings
 using Glob
 using Libz
@@ -24,7 +25,8 @@ PROJECT_THEME = Theme(
     major_label_font="CMU Serif",minor_label_font="CMU Serif", 
     point_size=5.5pt, major_label_font_size = 18pt, 
     minor_label_font_size = 18pt, key_title_font_size=18pt, 
-    line_width = 3.5pt, key_label_font_size=14pt, grid_line_width = 1.5pt
+    line_width = 3.5pt, key_label_font_size=14pt, #grid_line_width = 1.5pt,
+    panel_stroke = colorant"black", grid_line_width = 0pt
 )
 
 function N_sensitivity_results(yvars = 
@@ -99,7 +101,11 @@ function main_SL_result(yvar = :mean_social_learner;
                         nbehaviorsvec=[2, 4, 10], 
                         datadir = "data/develop", syncfile_tag = nothing,
                         sl_expected_dir = "data/sl_expected",
-                        nfiles = 100, annotate = true)  # Assumes 10 per trial, so 1000 trials.
+                        nfiles = 100, annotate = true, 
+                        show_u_eq = true,
+                        show_Gmax = false,
+                        version = :paper,
+                        limit_for_presentation = false)  
 
     for nbehaviors in nbehaviorsvec
         # df = make_endtime_results_df("data/develop", nbehaviors, yvar)
@@ -121,7 +127,10 @@ function main_SL_result(yvar = :mean_social_learner;
         end
 
         plot_over_u_sigmoids(aggdf, nbehaviors, yvar; 
-                             figuredir, nfiles, opacity, annotate, sl_expected_dir)
+                             figuredir, nfiles, opacity, annotate, 
+                             show_u_eq, show_Gmax,
+                             sl_expected_dir, version, 
+                             limit_for_presentation)
     end
 end
 
@@ -363,11 +372,27 @@ end
 function plot_over_u_sigmoids(final_agg_df, nbehaviors, 
                                        yvar = :mean_social_learner; 
                                        low_payoffs = [0.1, 0.45, 0.8],
+                                       lifespans = :all, 
                                        figuredir = ".", nfiles = 10, 
                                        annotate = true,
+                                       show_u_eq = true,
+                                       show_Gmax = false,
                                        sl_expected_dir = "data/sl_expected",
-                                       opacity = 0.8)
+                                       opacity = 0.8, 
+                                       version = :paper,
+                                       limit_for_presentation = false)
     df = final_agg_df
+
+    if limit_for_presentation
+        if nbehaviors ∈ [2, 4]
+            @subset!(df, :steps_per_round .∈ [[1, 8]])
+        elseif nbehaviors == 10
+            @subset!(df, :steps_per_round .∈ [[1, 20]])
+        else
+            error("limiting dataset for presentation only implemented for nbehaviors = 2, 4, or 10")
+        end
+    end
+                                              
 
     if yvar == :mean_prev_net_payoff
         # nfiles = 100
@@ -446,6 +471,12 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             end
             println(colorkeypos)
 
+            SEED_COLORS_TRANS = [RGBA(c, 0.7) for c in SEED_COLORS]
+            if limit_for_presentation
+                SEED_COLORS_TRANS = 
+                    [SEED_COLORS_TRANS[1], SEED_COLORS_TRANS[4]]
+            end
+
             if annotate
                 idf, sdf = load_idf_sdf(nbehaviors)
                 sorted_steps = sort(unique(thisdf.steps_per_round))
@@ -457,36 +488,54 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
 
                 stepsdf = load_steps_df(nbehaviors)
                 u_Gmax_vec = calc_uGmax(stepsdf, low_payoff, nbehaviors)
-
-                SEED_COLORS_TRANS = [RGBA(c, 0.7) for c in SEED_COLORS]
+                if limit_for_presentation
+                    u_Gmax_vec = [u_Gmax_vec[1], u_Gmax_vec[4]]
+                end
 
                 # Add some jitter to the x-intercepts if there are repeats.
+                expected_eq_locs_num = limit_for_presentation ? 2 : 4
                 d = Normal(0.0, 0.005)
-                if !(length(unique(u_eq_locs)) == 4)
-                    u_eq_locs .+= rand(d, 4)
+                if !(length(unique(u_eq_locs)) == expected_eq_locs_num)
+                    u_eq_locs .+= rand(d, expected_eq_locs_num)
                 end
-                if !(length(unique(u_Gmax_vec)) == 4)
-                    u_Gmax_vec .+= rand(d, 4)
+                if !(length(unique(u_Gmax_vec)) == expected_eq_locs_num)
+                    u_Gmax_vec .+= rand(d, expected_eq_locs_num)
                 end
 
                 u_eq_locs[u_eq_locs .> 1.0] .= 0.99
                 u_Gmax_vec[u_Gmax_vec .> 1.0] .= 0.99
 
+                if show_u_eq && show_Gmax
+                    xintercept = [u_eq_locs..., u_Gmax_vec...]
+                    style = [repeat([:ldashdot], expected_eq_locs_num)..., 
+                             repeat([:dot], expected_eq_locs_num)...]
+                    vline_color_vec = [SEED_COLORS_TRANS..., 
+                                       SEED_COLORS_TRANS...]
+                elseif show_u_eq
+                    xintercept = u_eq_locs
+                    style = repeat([:ldashdot], expected_eq_locs_num)
+                    vline_color_vec = SEED_COLORS_TRANS
+                elseif show_Gmax
+                    xintercept = u_Gmax_vec
+                    style = repeat([:dot], expected_eq_locs_num)
+                    vline_color_vec = SEED_COLORS_TRANS
+                else
+                    error("annotate = true, but show_u_eq and show_Gmax false")
+                end
+
                 p = plot(thisdf, x=:env_uncertainty, y=yvar, 
                          color = :steps_per_round, Geom.line, #Geom.point,
 
-                         xintercept = [u_eq_locs..., u_Gmax_vec...],
-                         Geom.vline(;color=[SEED_COLORS_TRANS..., 
-                                            SEED_COLORS_TRANS...],
-                                     style=[repeat([:ldashdot], 4)..., 
-                                            repeat([:dot], 4)...],
+                         xintercept = xintercept,
+                         Geom.vline(;color=vline_color_vec,
+                                     style=style,
                                      size=2.5pt),
 
                          Guide.xlabel(""),
                          Guide.ylabel(""), 
                          Guide.yticks(ticks=yticks),
                          # Scale.color_discrete(colorgenfn),
-                         Scale.color_discrete(gen_colors),
+                         Scale.color_discrete(_ -> SEED_COLORS_TRANS),
                          Guide.colorkey(title="<i>L</i>", pos=colorkeypos),
                          PROJECT_THEME)
             else
@@ -495,7 +544,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                          Guide.xlabel(""),
                          Guide.ylabel(""), 
                          Guide.yticks(ticks=yticks),
-                         Scale.color_discrete(gen_colors),
+                         Scale.color_discrete(_ -> SEED_COLORS_TRANS),
                          Guide.colorkey(title="<i>L</i>", pos=colorkeypos),
                          PROJECT_THEME)
             end
@@ -517,10 +566,16 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             # XXX TODO need to get rid of this, but when I did code stopped 
             # working, but wasn't worth figuring out why at the time.
             if nbehaviors ∈ [2, 4]
-                spr = [1, 2, 4, 8]
-            else
-                spr = [1, 5, 10, 20]
-            end
+                    spr = [1, 2, 4, 8]
+                    if limit_for_presentation
+                        spr = [1, 8]
+                    end
+                else
+                    spr = [1, 5, 10, 20]
+                    if limit_for_presentation
+                        spr = [1, 20]
+                    end
+                end
             asoc_df = filter(r -> (r.low_payoff == low_payoff) && 
                                    (r.nbehaviors == nbehaviors) &&
                                    (r.steps_per_round ∈ spr), 
@@ -551,13 +606,19 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             ]
 
             d = Normal(0.0, 0.005)
-            if !(length(unique(u_eq_locs)) == 4)
-                u_eq_locs .+= rand(d, 4)
+            expected_eq_locs_num = limit_for_presentation ? 2 : 4
+            if !(length(unique(u_eq_locs)) == expected_eq_locs_num)
+                u_eq_locs .+= rand(d, expected_eq_locs_num)
             end
 
             u_eq_locs[u_eq_locs .> 1.0] .= 0.99
 
             SEED_COLORS_TRANS = [RGBA(c, 0.8) for c in SEED_COLORS]
+            if limit_for_presentation
+                SEED_COLORS_TRANS = 
+                    [SEED_COLORS_TRANS[1], SEED_COLORS_TRANS[4]]
+            end
+
 
             p = plot(
                      layer(thisdf, x=:env_uncertainty, y=:geomean_payoff,  
