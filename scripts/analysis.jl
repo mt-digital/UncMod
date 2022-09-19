@@ -619,11 +619,11 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                     [SEED_COLORS_TRANS[1], SEED_COLORS_TRANS[4]]
             end
 
-
             p = plot(
                      layer(thisdf, x=:env_uncertainty, y=:geomean_payoff,  
                            color = :steps_per_round, Geom.line, 
-                           style(line_width=3.0pt)), # Geom.point),
+                           Gadfly.style(line_width=3.0pt)
+                          ), # Geom.point),
                      yintercept = expected_asocial_intercepts,
                      Geom.hline(; 
                                 # color=[RGBA(sc, opacity) for sc in SEED_COLORS],
@@ -636,10 +636,11 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                      layer(lowpay_aggsocdf, x=:env_uncertainty, y=:geomean_payoff, Geom.line,
                            # Geom.point,
                            color = :steps_per_round, 
-                           style(#$point_shapes=[diamond],
+                           Gadfly.style(#$point_shapes=[diamond],
                            #       point_size=4.5pt, 
                                  line_width=2.5pt, 
-                                 line_style=[:dot])), 
+                                 line_style=[:dot])
+                          ),
                      xintercept = u_eq_locs,
                      Geom.vline(; color=SEED_COLORS_TRANS, style=:ldashdot, size=2.5pt),
                      Guide.xlabel(""),
