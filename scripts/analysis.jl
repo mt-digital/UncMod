@@ -252,6 +252,7 @@ function gen_colors_transparent(n; opacity = 0.8)
     return map(col -> RGBA(col, opacity), gen_colors(n))
 end
 
+
 function gen_two_colors(n)
   cs = distinguishable_colors(n,
       [SEED_COLORS[1], SEED_COLORS[4]], # seed colors
@@ -446,30 +447,31 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             # and all-individual populations intersect.
             # soc_ind_expected_equal = calc_soc_ind_equal(low_payoff, nbehaviors)
 
-            if nbehaviors == 10
-                colorkeypos = [.05w,0.275h]
-            elseif nbehaviors == 4
-                colorkeypos = [.05w,0.275h]
-                # if low_payoff == 0.8
-                #     colorkeypos = [.25w,0.275h]
-                # end
-            elseif nbehaviors == 2
-                colorkeypos = [.865w,-0.205h]
-            end
+            colorkeypos = [.05w,0.275h]
+            # if nbehaviors == 10
+            #     colorkeypos = [.05w,0.275h]
+            # elseif nbehaviors == 4
+            #     colorkeypos = [.05w,0.275h]
+            #     # if low_payoff == 0.8
+            #     #     colorkeypos = [.25w,0.275h]
+            #     # end
+            # elseif nbehaviors == 2
+            #     colorkeypos = [.865w,-0.205h]
+            # end
 
-            if (nbehaviors == 2) && (low_payoff == 0.8)
-                println("in here B=2")
-                colorkeypos = [.735w,-0.205h]
-                println(colorkeypos)
-            end
+            # if (nbehaviors == 2) && (low_payoff == 0.8)
+            #     println("in here B=2")
+            #     colorkeypos = [.735w,-0.205h]
+            #     println(colorkeypos)
+            # end
 
-            if (nbehaviors == 4) && (low_payoff == 0.8)
-                println("in here B=4")
-                # colorkeypos = [.685w,-0.225h]
-                colorkeypos = [.25w,0.275h]
-                println(colorkeypos)
-            end
-            println(colorkeypos)
+            # if (nbehaviors == 4) && (low_payoff == 0.8)
+            #     println("in here B=4")
+            #     # colorkeypos = [.685w,-0.225h]
+            #     colorkeypos = [.25w,0.275h]
+            #     println(colorkeypos)
+            # end
+            # println(colorkeypos)
 
             SEED_COLORS_TRANS = [RGBA(c, 0.7) for c in SEED_COLORS]
             if limit_for_presentation
