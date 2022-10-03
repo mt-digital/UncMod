@@ -12,8 +12,8 @@ include("../model.jl")
     
     model = 
         uncertainty_learning_model(; τ = 1.0, nagents = 10, 
-                                   nteachers = 9,
-                                   nbehaviors = nbehaviors)
+                                     nteachers = 9,
+                                     nbehaviors)
 
     # Set up model to have one agent to reproduce with much greater payoffs
     # and pre-defined ledger values.
