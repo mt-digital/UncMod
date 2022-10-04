@@ -146,8 +146,6 @@ function add_step_payoff!(focal_agent::LearningAgent, model)
     # gotten their step payoff. Payoffs are added to net_payoffs and to the
     # agent's ledger in model_step!.
     focal_agent.step_payoff = payoff
-
-    return nothing
 end
 
 
@@ -181,6 +179,7 @@ end
 
 
 """
+
 """
 function model_step!(model)
 
@@ -208,7 +207,7 @@ function model_step!(model)
     end
 
     # If the model has gone steps_per_round time steps since the last model
-    # update, evolve the three social learning traits.
+    # update, evolve.
     if model.tick % model.steps_per_round == 0
 
         evolve!(model)
@@ -289,12 +288,13 @@ function select_parents(model::ABM)
     all_net_payoffs = map(a -> a.net_payoff, allagents(model))
 
     N = nagents(model)
-
+    
     parent_idxs = sample(
         collect(1:N), Weights(all_net_payoffs), N; replace=true
     )
-    
+
     ret = collect(allagents(model))[parent_idxs]
+
     return ret
 
 end

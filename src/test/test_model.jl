@@ -11,7 +11,7 @@ include("../model.jl")
     steps_per_round = 5
     
     model = 
-        uncertainty_learning_model(; τ = 1.0, nagents = 10, 
+        uncertainty_learning_model(; tau = 1.0, numagents = 10, 
                                      nteachers = 9,
                                      nbehaviors)
 
@@ -40,12 +40,18 @@ include("../model.jl")
         agent.social_learner = true
     end
 
+    agents = allagents(model)
+
+    _, _ = run!(model, agent_step!, model_step!, steps_per_round - 1)
+
     model[1].net_payoff = Inf
     model[1].ledger = rand(nbehaviors)
-    model.tick = steps_per_round
+
+    _, _ = run!(model, agent_step!, model_step!, 1)
 
     @testset "Next-gen social learners should have best-performing ledger." begin
-        _, _ = run!(model, agent_step!, model_step!, 1)
+        agents = allagents(model)
+
         for agent in allagents(model)
             @test agent.ledger == model[1].ledger
         end
@@ -53,7 +59,7 @@ include("../model.jl")
 end
 
 
-@testset "Agent should obtain payoffs with mean payoffs and behavior counts as expected when payoffs acquired fully randomly" begin
+@testset "Agent should obtain payoffs with mean payoffs and behavior counts when tau=Inf" begin
 
     high_payoff = 0.9
     nbehaviors = 10
@@ -62,14 +68,14 @@ end
     for low_payoff in 0.1:0.1:0.8
 
         model = 
-            uncertainty_learning_model(; τ = Inf, nagents = 2, 
+            uncertainty_learning_model(; tau = Inf, nagents = 2, 
                                        nteachers = 1,
                                        low_payoff = low_payoff, 
                                        high_payoff = high_payoff, 
                                        steps_per_round = steps_per_round,
                                        nbehaviors = nbehaviors)
 
-        _, _ = run!(model, agent_step!, model_step!, steps_per_round - 1)   
+        adf, mdf = run!(model, agent_step!, model_step!, steps_per_round - 1)   
 
         a = model[1]
         bmax = model.optimal_behavior
@@ -93,15 +99,15 @@ end
 @testset "Vectorized softmax weight calculation should be as expected" begin
     
     payoffs = [1.0, 2.0, 3.0, 5.0]
-    τ = 0.01
+    tau = 0.01
 
-    denom = exp(1.0 / τ) + exp(2.0 / τ) + exp(3.0 / τ) + exp(5.0 / τ)
-    w1 = exp(1.0 / τ) / denom
-    w2 = exp(2.0 / τ) / denom
-    w3 = exp(3.0 / τ) / denom
-    w4 = exp(5.0 / τ) / denom
+    denom = exp(1.0 / tau) + exp(2.0 / tau) + exp(3.0 / tau) + exp(5.0 / tau)
+    w1 = exp(1.0 / tau) / denom
+    w2 = exp(2.0 / tau) / denom
+    w3 = exp(3.0 / tau) / denom
+    w4 = exp(5.0 / tau) / denom
     w = [w1, w2, w3, w4]
 
-    @test w == softmax(payoffs, τ)
+    @test w == softmax(payoffs, tau)
 
 end
