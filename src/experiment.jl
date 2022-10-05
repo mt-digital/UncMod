@@ -35,7 +35,7 @@ function experiment(ntrials = 10;
                     tau = 0.1,
                     nteachers = 5,
                     init_social_learner_prevalence = 0.5,
-                    stop_cond = :default
+                    stop_cond = :fixation_plus_onegen
                     # env_uncertainty = collect(0.0:0.1:1.0)
     )
     
@@ -72,9 +72,7 @@ function experiment(ntrials = 10;
 
         fixated = (n_sl == 0.0) || (n_sl == nagents)
 
-        if stop_cond == :default
-            return fixated || step == max_niter
-        elseif stop_cond == :fixation_plus_onegen
+        if stop_cond == :fixation_plus_onegen
             return model.stop
         elseif stop_cond == :all_social_learners
             return step == max_niter * model.properties[:steps_per_round]
@@ -87,8 +85,7 @@ function experiment(ntrials = 10;
         when = (model, step) -> ( 
             (step % model.properties[:steps_per_round] == 0)  ||  (step == 0) || stop_condfn(model, step) 
         ),
-        parallel = true,
-        batch_size = max(length(models) ÷ nprocs(), 1)
+        parallel = true
     )
 
     println("About to return adf, mdf!!!")
