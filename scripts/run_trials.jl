@@ -90,7 +90,7 @@ function parse_cli()
             arg_type = Vector{Float64}
             default = [0.1]
 
-        "--nagents"
+        "--numagents"
             help = "Population size"
             arg_type = Int
             default = 100
@@ -127,7 +127,7 @@ function run_trials(ntrials = 20;
 
     println("About to save!!!")
 
-    @save outputfilename adf mdf
+    @save outputfilename {compress=true} adf mdf
 
     trialstime = Dates.toms(now() - tic) / (60.0 * 1000.0)
 

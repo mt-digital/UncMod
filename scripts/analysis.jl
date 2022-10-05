@@ -95,6 +95,35 @@ function tau_sensitivity_results(yvars =
 end
 
 
+function agg_hetero_results(yvar = :mean_social_learner; 
+                            nbehaviorsvec=[2, 4, 10], 
+                            datadir = "data/main", nfiles=100,
+                            syncfile_tag = nothing)
+
+    for nbehaviors in nbehaviorsvec
+        # df = make_endtime_results_df("data/develop", nbehaviors, yvar)
+        # Don't know why but this outperforms the above to build 
+        # averaged dataframe at final time step.
+        if isnothing(syncfile_tag)
+            aggdf_file = "data/mainResult-yvar=$yvar-B=$nbehaviors.jld2"
+        else
+            aggdf_file = "data/mainResult-yvar=$yvar-B=$nbehaviors-$syncfile_tag.jld2"
+        end
+
+        if isfile(aggdf_file)
+            println("Loading aggregated data from file $aggdf_file")
+            aggdf = load(aggdf_file)["aggdf"]
+        else
+            df = load_random_df(datadir, nbehaviors, nfiles)
+            aggdf = aggregate_final_timestep(df, yvar)
+            @save aggdf_file aggdf
+        end
+
+    end
+
+end
+
+
 function main_SL_result(yvar = :mean_social_learner; 
                         opacity = 0.8,
                         figuredir = "papers/UncMod/Figures", 

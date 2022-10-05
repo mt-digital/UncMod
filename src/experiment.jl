@@ -23,7 +23,7 @@ end
 
 
 function experiment(ntrials = 10; 
-                    nagents = 100, 
+                    numagents = 100, 
                     nbehaviors = [2], #,10,20],
                     high_payoff = [0.9],  # π_high in the paper
                     low_payoff = [0.1, 0.45, 0.8],   # π_low in the paper
@@ -42,7 +42,7 @@ function experiment(ntrials = 10;
     trial_idx = collect(1:ntrials)
 
     params_list = dict_list(
-        @dict steps_per_round nbehaviors high_payoff low_payoff trial_idx env_uncertainty tau nagents nteachers init_social_learner_prevalence
+        @dict steps_per_round nbehaviors high_payoff low_payoff trial_idx env_uncertainty tau numagents nteachers init_social_learner_prevalence
     )
 
     # We are not interested in cases where high expected payoff is less than
@@ -62,7 +62,7 @@ function experiment(ntrials = 10;
 
     models = [
         uncertainty_learning_model(;
-            nagents = nagents, 
+            numagents, 
             params...)
         for params in params_list
     ]
@@ -70,7 +70,7 @@ function experiment(ntrials = 10;
     function stop_condfn(model, step)
         n_sl = sum(a.social_learner for a in allagents(model))
 
-        fixated = (n_sl == 0.0) || (n_sl == nagents)
+        fixated = (n_sl == 0.0) || (n_sl == numagents)
 
         if stop_cond == :fixation_plus_onegen
             return model.stop
