@@ -118,9 +118,7 @@ function agg_hetero_results(yvar = :mean_social_learner;
             aggdf = aggregate_final_timestep(df, yvar)
             @save aggdf_file aggdf
         end
-
     end
-
 end
 
 
@@ -921,6 +919,7 @@ function make_line_elements(; elemwidth = 11pt, linelen = 1.75inch,
         draw(PDF(joinpath(figuredir, "$(string(line_style)).pdf")), p)
     end
 end
+
 
 function make_payoffs_timeseries(u, pilow, B, L; ngenerations = 30,        
                                  numagents = 1000, whensteps = 1, 

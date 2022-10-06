@@ -3,7 +3,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=24
 #SBATCH --mem-per-cpu=10G
-#SBATCH --time=01:00:00
+#SBATCH --time=00:10:00
 #SBATCH --output=full_B=10.out
 #SBATCH --partition=serc,normal
 

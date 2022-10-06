@@ -83,7 +83,8 @@ function experiment(ntrials = 10;
         models, agent_step!, model_step!, stop_condfn; 
         adata, mdata, 
         when = (model, step) -> ( 
-            (step % model.properties[:steps_per_round] == 0)  ||  (step == 0) || stop_condfn(model, step) 
+            # (step % model.properties[:steps_per_round] == 0)  ||  (step == 0) || stop_condfn(model, step) 
+            (step == 0) || stop_condfn(model, step) 
         ),
         parallel = true
     )
