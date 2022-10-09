@@ -249,6 +249,7 @@ learning strategy with mutation; (2) die off.
 function evolve!(model::ABM)
 
     agents_coll = collect(allagents(model))
+    prevgen_copy = deepcopy(agents_coll)
 
     parents = select_parents(model)
     parents_social_learner_trait = map(parent -> parent.social_learner, parents)
@@ -260,19 +261,26 @@ function evolve!(model::ABM)
         child.social_learner = social_learner
 
         if child.social_learner
-            agentsvec = collect(allagents(model)) 
-            teachers = sample(agentsvec, model.nteachers, replace=false)
 
+            # agentsvec = collect(allagents(model)) 
+
+            # Select initial subset at random for prospective teachers.
+            teachers = sample(prevgen_copy, model.nteachers, replace=false)
+
+            # Select teacher with highest payoff.
             teacher_idx = argmax(map(t -> t.net_payoff, teachers))
             teacher = teachers[teacher_idx]
             
+            # Learn teacher's observed exp-weighted average payoffs for each behavior...
             child.ledger = copy(teacher.ledger)
-            # and the count of observations of each behavior is reset to 1.
-            child.behavior_count = repeat([1], model.nbehaviors)
+            # ...and set observations to 1 if teacher observed the behavior at
+            # least once; set behavior_count to 0 if teacher never observed that
+            # behavior.
+            child.behavior_count = min.(teacher.behavior_count, 1)
 
         else
             # If child is not a social learner, ledger and counts are totally reset.
-            child.ledger = zeros(Float64, model.nbehaviors)
+             child.ledger = zeros(Float64, model.nbehaviors)
             child.behavior_count = zeros(Int64, model.nbehaviors)
         end
     end
