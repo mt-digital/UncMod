@@ -366,12 +366,10 @@ function calc_one_soc_ind_equal(idf, sdf, low_payoff, nbehaviors, steps_per_roun
         under_thresh = abs.(d) .< thresh
         while sum(under_thresh) == 0
             thresh += dthresh
-            # println("Trying threshold=$thresh")
             under_thresh = abs.(d) .< thresh 
         end
 
         u_eq = sdflim.env_uncertainty[argmax(under_thresh)]
-        println("Final thresh: $thresh")
     end
 
     # return idf, sdf
@@ -474,7 +472,11 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             # and all-individual populations intersect.
             # soc_ind_expected_equal = calc_soc_ind_equal(low_payoff, nbehaviors)
 
-            colorkeypos = [.05w,0.275h]
+            if yvar == :step
+                colorkeypos = [.01w,-0.240h]
+            else
+                colorkeypos = [.05w,0.275h]
+            end
             # if nbehaviors == 10
             #     colorkeypos = [.05w,0.275h]
             # elseif nbehaviors == 4
@@ -578,6 +580,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                          PROJECT_THEME)
             end
 
+        # Begin plotting routine for yvar = :mean_prev_net_payoff
         else
 
             for r in eachrow(thisdf)
@@ -648,6 +651,29 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                     [SEED_COLORS_TRANS[1], SEED_COLORS_TRANS[4]]
             end
 
+            u_eq_df = DataFrame(:x => u_eq_locs, :y => zeros(length(u_eq_locs)),
+                                :idx => 1:4)
+
+            println(first(idf, 20))
+            idf_payoff = @select(idf, 
+                                 :nbehaviors = nbehaviors, 
+                                 :low_payoff, 
+                                 :steps_per_round,
+                                 :geomean_payoff)
+
+            if low_payoff == 0.1
+                u_eq_yloc = 0.0
+                yticks = 0.1:0.4:0.9
+            elseif low_payoff == 0.45
+                u_eq_yloc = 0.45
+                yticks = 0.40:0.25:0.9
+            elseif low_payoff == 0.8
+                u_eq_yloc = 0.800
+                yticks = [0.8, 0.85, 0.9]
+            end
+
+            u_eq_ptsize = 4.5pt
+
             p = plot(
                      layer(thisdf, x=:env_uncertainty, y=:geomean_payoff,  
                            color = :steps_per_round, Geom.line, 
@@ -670,16 +696,34 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                                  line_width=2.5pt, 
                                  line_style=[:dot])
                           ),
-                     xintercept = u_eq_locs,
-                     Geom.vline(; color=SEED_COLORS_TRANS, style=:ldashdot, size=2.5pt),
+                     
+                     layer(x=[u_eq_locs[1]], y = [u_eq_yloc], Geom.point,
+                           Theme(default_color= SEED_COLORS[1],
+                                 point_shapes=[Shape.cross],
+                                point_size=u_eq_ptsize)),
+                     layer(x=[u_eq_locs[2]], y = [u_eq_yloc], Geom.point,
+                           Theme(default_color = SEED_COLORS[2],
+                                 point_shapes=[Shape.cross],
+                                point_size=u_eq_ptsize)),
+                     layer(x=[u_eq_locs[3]], y = [u_eq_yloc], Geom.point,
+                           Theme(default_color= SEED_COLORS[3],
+                                 point_shapes=[Shape.cross],
+                                point_size=u_eq_ptsize)),
+                     layer(x=[u_eq_locs[4]], y = [u_eq_yloc], Geom.point,
+                           Theme(default_color = SEED_COLORS[4],
+                                 point_shapes=[Shape.cross],
+                                point_size=u_eq_ptsize)),
+                     # xintercept = u_eq_locs,
+                     # Geom.vline(; color=SEED_COLORS_TRANS, style=:ldashdot, size=2.5pt),
                      Guide.xlabel(""),
                      Guide.ylabel(""), 
-                     # Guide.yticks(ticks=yticks),
+                     Guide.yticks(ticks=yticks),
                      # Scale.color_discrete(gen_two_colors),
                      Scale.color_discrete(_ -> SEED_COLORS_TRANS), #n -> gen_colors(n)),#; opacity = opacity)),
                      Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
                     # )
-                     PROJECT_THEME)
+                     
+                    PROJECT_THEME)
         end
         
         draw(
@@ -985,7 +1029,6 @@ function plot_payoff_timeseries(sim_adf, sim_mdf, env_uncertainty, low_payoff,
     # Copy sim_adf so transformations for plotting don't affect data.
     sim_adf = copy(sim_adf)
     sim_adf.generation = sim_adf.step / L
-    println(first(sim_adf))
     sim_asoc_tag = :mean_prev_net_payoff_is_asoc
     sim_soc_tag = :mean_prev_net_payoff_is_soc
     sim_mean_tag = :mean_prev_net_payoff
@@ -1010,7 +1053,6 @@ function plot_payoff_timeseries(sim_adf, sim_mdf, env_uncertainty, low_payoff,
                                  :steps_per_round .== L).geomean_payoff) / L
 
     yintercept = [expected_asoc, expected_soc]
-    println(yintercept)
 
     # Find where optimal behavior changed between generations.
     optbeh = sim_mdf.optimal_behavior

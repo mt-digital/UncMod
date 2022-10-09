@@ -1,20 +1,23 @@
-# UncertaintyModel
+# UncMod: Model supporting _Different forms of uncertainty differently affect
+the evolution of social learning_
 
-This project models the evolution of social learning under environmental 
-uncertainty.
+It is a truism that social learning evolved to help individuals identify
+beneficail behaviors in their environment when there is uncertainty. This is
+often summarized as the _copy when uncertain_ strategy. Yet it is not clear
+what forms of uncertainty are most important or how different forms of
+uncertainty interact to affect the evolution of social learning. 
 
-## Model setup using DrWatson
+We developed this model to address this need for improved systematic
+understanding of the relationship between varieties of uncertainty and the
+evolution of social learning.
 
-This code base is using the Julia Language and [DrWatson](https://juliadynamics.github.io/DrWatson.jl/stable/)
-to make a reproducible scientific project named
-> UncertaintyModel
 
-It is authored by mt-digital.
+## Installation and setup.
 
 To (locally) reproduce this project, do the following:
 
-0. Download this code base. Notice that raw data are typically not included in the
-   git-history and may need to be downloaded independently.
+0. [Download](https://github.com/mt-digital/UncMod/archive/refs/heads/main.zip) 
+or clone the repository (`git clone https://github.com/mt-digital/UncMod`)
 1. Open a Julia console and do:
    ```
    julia> using Pkg
@@ -25,6 +28,16 @@ To (locally) reproduce this project, do the following:
 
 This will install all necessary packages for you to be able to run the scripts and
 everything should work out of the box.
+
+
+## Quickstart: run the model
+
+
+
+## Advanced: run computational experiments on a Slurm cluster
+
+For this project, we used the [Sherlock cluster at Stanford University]() to
+run our simulations at scale. We considered 
 
 
 ## Tests
