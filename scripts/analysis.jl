@@ -32,8 +32,8 @@ PROJECT_THEME = Theme(
 function N_sensitivity_results(yvars = 
                                 [:mean_social_learner, :mean_prev_net_payoff, 
                                  :step]; 
-                                Ns = ["50", "100", "200"],
-                                figuredir = "papers/UncMod/Figures", 
+                                Ns = ["50", "200"],
+                                figuredir = "papers/UncMod/Figures/supplement", 
                                 nbehaviorsvec=[2, 4, 10], annotate = false,
                                 nfiles = 100
                                 ) 
@@ -44,9 +44,9 @@ function N_sensitivity_results(yvars =
             # from server into N=$N directories locally.
             # TODO Add code to check if these are available and create and automatically
             # separate if they are. This is done for compat with main_SL_result.
-            datadir = "data/nagents_sensitivity/nagents=$N"
+            datadir = "data/N_sensitivity/numagents=$N"
 
-            main_SL_result(yvar; figuredir = "$figuredir/nagents=$N", 
+            main_SL_result(yvar; figuredir = "$figuredir/numagents=$N", 
                            datadir, nfiles, syncfile_tag="N=$N", annotate=false)
         end
     end
@@ -69,7 +69,7 @@ function nteachers_sensitivity_results(yvars =
             # datadir = "data/nteachers_sensitivity/nteachers=$nteachers"
             datadir = "data/nteachers_sensitivity/nteachers=$nteachers"
             main_SL_result(yvar; figuredir = "$figuredir/supplement/nteachers=$nteachers", 
-                           datadir, nfiles, syncfile_tag="nteachers", annotate=false)
+                           datadir, nfiles, syncfile_tag="nteachers=$nteachers", annotate=false)
         end
     end
 end
@@ -80,16 +80,17 @@ function tau_sensitivity_results(yvars =
                                 taus = ["0.01", "1.0"];
                                 figuredir = "papers/UncMod/Figures/supplement", 
                                 nbehaviorsvec=[2, 4, 10], 
-                                nfiles = 10)  # New parallel runs easily do 100 trials per file
+                                nfiles = 100)  # New parallel runs easily do 100 trials per file
     for tau in taus
         for yvar in yvars
             # Currently have to manually separate files from tau_sensitivity dir
             # from server into tau$tau directories locally.
             # TODO Add code to check if these are available and create and automatically
             # separate if they are. This is done for compat with main_SL_result.
-            datadir = "data/tau_sensitivity/$tau"
+            datadir = "data/tau/$tau"
             main_SL_result(yvar; figuredir = "$figuredir/sensitivity_tau=$tau", 
-                           datadir, nfiles, syncfile_tag="tau_sensitivity")
+                           datadir, nfiles, annotate = false, 
+                           syncfile_tag="tau=$tau")
         end
     end
 end
@@ -477,30 +478,6 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             else
                 colorkeypos = [.05w,0.275h]
             end
-            # if nbehaviors == 10
-            #     colorkeypos = [.05w,0.275h]
-            # elseif nbehaviors == 4
-            #     colorkeypos = [.05w,0.275h]
-            #     # if low_payoff == 0.8
-            #     #     colorkeypos = [.25w,0.275h]
-            #     # end
-            # elseif nbehaviors == 2
-            #     colorkeypos = [.865w,-0.205h]
-            # end
-
-            # if (nbehaviors == 2) && (low_payoff == 0.8)
-            #     println("in here B=2")
-            #     colorkeypos = [.735w,-0.205h]
-            #     println(colorkeypos)
-            # end
-
-            # if (nbehaviors == 4) && (low_payoff == 0.8)
-            #     println("in here B=4")
-            #     # colorkeypos = [.685w,-0.225h]
-            #     colorkeypos = [.25w,0.275h]
-            #     println(colorkeypos)
-            # end
-            # println(colorkeypos)
 
             SEED_COLORS_TRANS = [RGBA(c, 0.7) for c in SEED_COLORS]
             if limit_for_presentation
@@ -654,7 +631,6 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             u_eq_df = DataFrame(:x => u_eq_locs, :y => zeros(length(u_eq_locs)),
                                 :idx => 1:4)
 
-            println(first(idf, 20))
             idf_payoff = @select(idf, 
                                  :nbehaviors = nbehaviors, 
                                  :low_payoff, 
@@ -980,22 +956,17 @@ function make_payoffs_timeseries(u, pilow, B, L; ngenerations = 30,
     println("Running simulations")
 
     # Define functions and adata reporter to aggregate asocial and social payoffs.
-    # function asoc_payoff_mean(avec)
-    #     return mean(filter(a -> !a.social_learner, avec))
-    # end
-    # function soc_payoff_mean(avec)
-    #     return mean(filter(a -> a.social_learner, avec))
-    # end
     is_asoc(a) = !a.prev_social_learner
     is_soc(a) = a.prev_social_learner
 
     nanmean(x) = mean(filter(!isnan, x))
+    mean_ifdata(x) = isempty(x) ? 0.0 : mean(x)
     sim_adata = [
         (:behavior, countmap),
         (:social_learner, mean),
         (:prev_net_payoff, mean),
-        (:prev_net_payoff, mean, is_asoc),
-        (:prev_net_payoff, mean, is_soc)
+        (:prev_net_payoff, mean_ifdata, is_asoc),
+        (:prev_net_payoff, mean_ifdata, is_soc)
     ]
 
     whensteps = L
@@ -1020,7 +991,9 @@ end
 
 
 function plot_payoff_timeseries(sim_adf, sim_mdf, env_uncertainty, low_payoff, 
-                                nbehaviors, L; gma_period = 5, figuredir = nothing)
+                                nbehaviors, L; 
+                                gma_period = 5, figuredir = nothing,
+                                xticks = :auto)
 
     set_default_plot_size(9inch, 5inch)
 
@@ -1029,8 +1002,8 @@ function plot_payoff_timeseries(sim_adf, sim_mdf, env_uncertainty, low_payoff,
     # Copy sim_adf so transformations for plotting don't affect data.
     sim_adf = copy(sim_adf)
     sim_adf.generation = sim_adf.step / L
-    sim_asoc_tag = :mean_prev_net_payoff_is_asoc
-    sim_soc_tag = :mean_prev_net_payoff_is_soc
+    sim_asoc_tag = :mean_ifdata_prev_net_payoff_is_asoc
+    sim_soc_tag = :mean_ifdata_prev_net_payoff_is_soc
     sim_mean_tag = :mean_prev_net_payoff
     for tag in [sim_asoc_tag, sim_soc_tag, sim_mean_tag]
         sim_adf[!, tag] = gma(sim_adf[!, tag], gma_period) / L
@@ -1059,10 +1032,18 @@ function plot_payoff_timeseries(sim_adf, sim_mdf, env_uncertainty, low_payoff,
     optchange_idxs = filter(x -> !isnothing(x),
                             [optbeh[ii+1] ≠ optbeh[ii] ? ii + 1 : nothing 
                              for ii in 1:(length(optbeh) - 1)])
-
+    # Use times when optimal behavior changed as Gadfly x-intercept.
     xintercept = sim_adf.generation[optchange_idxs]
 
-    yticks = 0:0.1:1.0
+    yticks = 0:0.5:1.0
+
+    timeseries_theme = Theme(
+        major_label_font="CMU Serif",minor_label_font="CMU Serif", 
+        point_size=5.0pt, major_label_font_size = 14pt, 
+        minor_label_font_size = 14pt, key_title_font_size=14pt, 
+        line_width = 4.0pt, key_label_font_size=12pt, #grid_line_width = 1.5pt,
+        panel_stroke = colorant"black", grid_line_width = 0pt
+    )
 
     p = plot(
 
@@ -1088,14 +1069,17 @@ function plot_payoff_timeseries(sim_adf, sim_mdf, env_uncertainty, low_payoff,
                       size = 1.5pt),
 
          Guide.yticks(ticks=yticks),
+         Guide.xticks(ticks=xticks),
 
          Guide.manual_color_key(
-            "Legend",
+            # "Legend",
+            "",
                                 
-            ["GMA(Simulated Asocial Payoffs, 5)", "Geom. Expect. Homog. Asoc.", 
-             "GMA(Simulated Social Payoffs, 5)", "Geom. Expect. Homog. Soc.",
-             "GMA(Mean Payoffs, 5)", "Soc. learn. prevalence", "Environmental change"
+            ["GMA(Sim. asoc. payoff)", "Expected asoc. payoff", 
+             "GMA(Sim. soc. payoff)", "Expected soc. payoff",
+             "GMA(Tot. sim. payoff)", "Soc. learner prevalence", "Environmental change"
              ],
+            # ["", "", "", "", "", "", ""],
             [payseries_colors[1], payseries_colors[1], payseries_colors[2], 
              payseries_colors[2], payseries_colors[3], payseries_colors[4], 
              "lightgrey"];
@@ -1106,8 +1090,9 @@ function plot_payoff_timeseries(sim_adf, sim_mdf, env_uncertainty, low_payoff,
 
          Guide.xlabel("Generation"),
          Guide.ylabel("Payoffs or prevalence"),
-         Guide.title("u = $env_uncertainty, pi_low = $low_payoff, B = $nbehaviors, L = $L"),
-         PROJECT_THEME
+         # Guide.title("u = $env_uncertainty, pi_low = $low_payoff, B = $nbehaviors, L = $L"),
+         Theme(key_label_font_size=10pt),
+         timeseries_theme
     )
 
     if !isnothing(figuredir)
