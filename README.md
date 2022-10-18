@@ -31,12 +31,16 @@ everything should work out of the box.
 
 ## Quickstart: run the model
 
-
+Our analysis is based on running ensembles of models initialized with systematically varied uncertainty and other parameters.
+a
 
 ## Advanced: run computational experiments on a Slurm cluster
 
-For this project, we used the [Sherlock cluster at Stanford University]() to
-run our simulations at scale. We considered 
+For this project, we used the [Sherlock cluster at Stanford University](https://www.sherlock.stanford.edu/) to
+run our simulations at scale. 
+
+### scripts/run_trials.jl
+
 
 
 ## Tests
