@@ -1,6 +1,6 @@
 # UncMod: Model supporting "Different forms of uncertainty differently affect the evolution of social learning"
 
-It is a truism that social learning evolved to help individuals identify
+It is a common truism that social learning evolved to help individuals identify
 beneficail behaviors in their environment when there is uncertainty. This is
 often summarized as the _copy when uncertain_ strategy. Yet it is not clear
 what forms of uncertainty are most important or how different forms of
