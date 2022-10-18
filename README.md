@@ -1,4 +1,4 @@
-# UncMod: Model supporting _Different forms of uncertainty differently affect the evolution of social learning_
+# UncMod: Model supporting "Different forms of uncertainty differently affect the evolution of social learning"
 
 It is a truism that social learning evolved to help individuals identify
 beneficail behaviors in their environment when there is uncertainty. This is
