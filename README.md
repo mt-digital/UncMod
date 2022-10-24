@@ -1,4 +1,4 @@
-# UncMod: Model supporting "Different forms of uncertainty differently affect the evolution of social learning"
+# UncMod: Model supporting "The Form of Uncertainty Affects Selection for Social Learning"
 
 It is a common truism that social learning evolved to help individuals identify
 beneficail behaviors in their environment when there is uncertainty. This is
@@ -31,8 +31,8 @@ everything should work out of the box.
 
 ## Quickstart: run the model
 
-Our analysis is based on running ensembles of models initialized with systematically varied uncertainty and other parameters.
-a
+Our analysis is based on running ensembles of models initialized with systematically varied uncertainty and other parameters. 
+
 
 ## Advanced: run computational experiments on a Slurm cluster
 
