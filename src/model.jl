@@ -19,79 +19,79 @@ using Debugger
 
 
 """
+Initialize one instance of the social learning model with the given parameters.
+
+Notes: 
+- we use tau in the model code here, not β as we did in the paper; Recall 
+  β = 1/tau. 
 """
 function uncertainty_learning_model(; 
-                                    nagents = 100, 
-                                    # minority_frac = 0.5, 
-                                    mutation_magnitude = 0.05,  # σₘ in paper.
-                                    # learnparams_mutating = [:homophily, :exploration, :soclearnfreq],
-                                    # learnparams_mutating = [:soclearnfreq],
-                                    base_payoffs = [0.5, 0.5],
-                                    payoff_variance = 0.1,
-                                    steps_per_round = 10,
-                                    nteachers = 10,
-                                    regen_payoffs = false,
-                                    init_soclearnfreq = 0.0,
-                                    τ_init = 0.01,
-                                    dτ = 9.999e-5,
-                                    # payoff_learning_bias = false,
-                                    high_payoff = nothing,
-                                    low_payoff = nothing,
-                                    nbehaviors = nothing,
+                                    numagents = 100,  
+                                    nbehaviors = 2,
+                                    steps_per_round = 5,
+                                    nteachers = 5,
+                                    init_social_learner_prevalence = 0.5,
+                                    tau = 0.1,
+                                    high_payoff = 0.9,
+                                    low_payoff = 0.1,
                                     trial_idx = nothing,
-                                    annealing = true,
-                                    vertical = true,
                                     env_uncertainty = 0.0,
-                                    # Says how much to reduce the ledger when 
-                                    # passed between generations.
+                                    ngenerations_fixated = 1,
                                     model_parameters...)
     
-    if isnothing(nbehaviors)
-        nbehaviors = length(base_payoffs)
-    else
-        base_payoffs = [low_payoff for _ in 1:nbehaviors]
-        base_payoffs[1] = high_payoff
-    end
-
     tick = 1
+    # Optimal behavior will be randomly set between 1 and nbehaviors below.
+    optimal_behavior = 0
+    expected_payoffs = []
 
-    # XXX not sure why/if this is necessary.
-    # steps_per_round += 1
+    # Set up tracking to possibly stop the model after ngenerations. 
+    # `model.stop` will be set to true based on a check of whether the model
+    # is fixated. `model.fixated` will be set last in model_step! after 
+    # this check, so that model.stop is detected after one fixated generation.
+    if ngenerations_fixated > 1
+        @assert false "Maximum number of generations to run past fixation limited to 1"
+    end
+    fixated = false
+    stop = false
 
     # Build full dictionary of model parameters and mutation distribution.
     params = merge(
+        Dict(model_parameters),  
 
-        Dict(model_parameters), 
-        
-        Dict(:mutation_distro => Normal(0.0, mutation_magnitude),
-             :optimal_behavior => 1),
-
-        @dict steps_per_round tick low_payoff high_payoff base_payoffs payoff_variance  nbehaviors nteachers τ_init regen_payoffs low_payoff high_payoff trial_idx annealing vertical env_uncertainty
+        @dict steps_per_round tick low_payoff high_payoff nbehaviors nteachers trial_idx env_uncertainty optimal_behavior expected_payoffs tau fixated stop
     )
-    
+
     # Initialize model. 
     model = ABM(LearningAgent, scheduler = Schedulers.fastest;
                 properties = params)
 
-    function add_soclearn_agent!(idx::Int64)
-        # For now initialize behaviors randomly. These can be modified after
-        # initialization as needed for different experiments.
-        add_agent!(LearningAgent(
-                       id = idx,
-                       behavior = sample(1:nbehaviors),
-                       payoffs = 
-                        draw_payoffs(base_payoffs, payoff_variance),
-                       ledger = zeros(Float64, nbehaviors),
-                       behavior_count = zeros(Int64, nbehaviors),
-                       soclearnfreq = init_soclearnfreq,
-                       τ = τ_init,
-                       dτ = dτ
-                   ), 
-                   model)
-    end
+    # Initialize environment.
+    model.optimal_behavior = sample(1:nbehaviors)
+    model.expected_payoffs = repeat([low_payoff], nbehaviors)
+    model.expected_payoffs[model.optimal_behavior] = high_payoff
+
     
-    for ii in 1:nagents
-        add_soclearn_agent!(ii)
+    for ii in collect(1:numagents)
+
+        if rand(model.rng) < init_social_learner_prevalence
+            social_learner = true
+        else
+            social_learner = false
+        end
+
+        add_agent!(
+            LearningAgent(;
+                id = ii, 
+                behavior = 0,  # Doesn't matter, will be selected at random at init.
+                ledger = zeros(Float64, nbehaviors),
+                behavior_count = zeros(Int64, nbehaviors),
+                # social_learner = sample([true, false]),
+                social_learner = social_learner,
+                prev_social_learner = social_learner
+            ), 
+            model
+        )
+
     end
 
     return model
@@ -99,7 +99,8 @@ end
 
 
 """
-
+Learner agents do a behavior, perhaps are a social learner, accumulate payoffs,
+and track expected payoffs.
 """
 @with_kw mutable struct LearningAgent <: AbstractAgent
     
@@ -108,35 +109,23 @@ end
 
     # Behavior represented by int that indexes payoffs to probabilistically
     # generate payoff.
-    behavior::Int64
-    payoffs::Array{Float64}
-
-    # Learning parameters.
-    soclearnfreq::Float64 
-    vertical_transmag::Float64 = 0.1
-
-    # Softmax temperature
-    τ::Float64 
-    # Softmax annealing subtractive change 
-    dτ::Float64
+    behavior::Int
+    social_learner::Bool
+    prev_social_learner::Bool
 
     # Payoffs. Need a step-specific payoff due to asynchrony--we don't want
     # some agents' payoffs to be higher just because they performed a behavior
     # before another.
-    prev_net_payoff::Float64 = 0.0
     step_payoff::Float64 = 0.0
     net_payoff::Float64 = 0.0
+    # Hold the "previous" net payoff to track net payoffs at final time step.
+    prev_net_payoff::Float64 = 0.0
 
     # The ledger keeps track of individually-learned payoffs in each 
     # behavior-environment pair. Behaviors are rep'd by Int, which indexes
     # the ledger to look up previous payoffs and behavior counts.
     ledger::Array{Float64}
     behavior_count::Array{Int64}
-
-    age::Int64 = 0
-
-    uuid::UUID = uuid4()
-    parent::Union{UUID, Nothing} = nothing
 end
 
 
@@ -144,70 +133,25 @@ end
 Generate a payoff that will be distributed to an agent performing the 
 behavior with prob proportional to payoff for the chosen payoff.
 """
-function generate_payoff!(focal_agent::LearningAgent)  #behavior_idx::Int64, payoffs::Array{Float64})
+function add_step_payoff!(focal_agent::LearningAgent, model)
 
-    if rand() < focal_agent.payoffs[focal_agent.behavior]
+    # The focal_agent's behavior pays off probabilistically.
+    if rand(model.rng) < model.expected_payoffs[focal_agent.behavior]
         payoff = 1.0
     else
         payoff = 0.0
     end
 
-    # Here the step payoff is stored until all agents have asynchronously 
-    # gotten their step payoff. Payoffs are be added to net_payoffs and to the
+    # The step payoff is stored until all agents have asynchronously 
+    # gotten their step payoff. Payoffs are added to net_payoffs and to the
     # agent's ledger in model_step!.
     focal_agent.step_payoff = payoff
-
-    return payoff
 end
 
 
-# Convert the desired payoff mean and variance to Beta dist parameters.
-function μσ²_to_αβ(μ, σ²)
+function softmax(payoffs::AbstractVector, tau::Float64)
 
-    α::Float64 = (μ^2) * (((1 - μ) / σ²) - (1/μ))
-    β::Float64 = α * ((1 / μ) - 1)
-
-    return α, β
-end
-
-
-function draw_payoffs(base_payoffs, payoff_variance)
-
-    # Transform base payoffs and payoff variance into Beta dist params.
-    params = map(base_rel -> μσ²_to_αβ(base_rel, payoff_variance),
-                        base_payoffs)
-
-    return map(
-        ((α, β),) -> rand(Beta(α, β)),
-        params
-    )
-end
-
-
-function learn_behavior(focal_agent::LearningAgent, 
-                        model::ABM,
-                        teachers = nothing)
-
-    # If no teachers are provided this Asocial learning
-    if isnothing(teachers)
-        if !(sum(focal_agent.ledger) == 0.0)
-            weights = Weights(softmax(focal_agent.ledger, focal_agent.τ))
-            behavior = sample(1:model.nbehaviors, weights)
-        else 
-            behavior = focal_agent.behavior
-        end
-    else
-        weights = Weights(map(a -> a.net_payoff, teachers))
-        behavior = sample(teachers, weights).behavior
-    end
-
-    return behavior
-end
-
-
-function softmax(payoffs::AbstractVector, τ::Float64)
-
-    exponentiated = exp.(payoffs ./ τ)
+    exponentiated = exp.(payoffs ./ tau)
     denom = sum(exponentiated)
 
     return exponentiated ./ denom
@@ -216,22 +160,10 @@ end
 
 function select_behavior!(focal_agent, model)
     
-    # First, determine whether learning is individual or social for this step.
-    focal_soclearnfreq = focal_agent.soclearnfreq    
+    weights = Weights(softmax(focal_agent.ledger, model.tau))
+    focal_agent.behavior = sample(1:model.nbehaviors, weights)
 
-    if (rand() < focal_soclearnfreq) 
-        teachers = sample(
-            filter(a -> a ≠ focal_agent, collect(allagents(model))), 
-            model.nteachers
-        )
-        behavior = learn_behavior(focal_agent, model, teachers)
-    else
-        behavior = learn_behavior(focal_agent, model)
-    end
-
-    focal_agent.behavior = behavior
-
-    return behavior
+    return nothing
 end
 
 
@@ -241,154 +173,71 @@ function agent_step!(focal_agent::LearningAgent,
                      model::ABM) 
 
     select_behavior!(focal_agent, model)
-    generate_payoff!(focal_agent)
+    add_step_payoff!(focal_agent, model)
 
 end
 
 
-
 """
+
 """
 function model_step!(model)
 
-    for agent in allagents(model)
+    for (idx, agent) in enumerate(collect(allagents(model)))
+        prevledg = 0.0
      
         # Accumulate, record, and reset step payoff values.
-        agent.prev_net_payoff = agent.net_payoff
         agent.net_payoff += agent.step_payoff
+        agent.prev_net_payoff = copy(agent.net_payoff)
         
         # Update ledger and behavior counts.
         prevledg = agent.ledger[agent.behavior]
         agent.behavior_count[agent.behavior] += 1
+
+        # Increment ledger amount from current behavior via exponential averaging.
         updated_ledger_amt = prevledg + (
                 (agent.step_payoff - prevledg) / 
                 agent.behavior_count[agent.behavior]
-                # Float64(agent.behavior_count[agent.behavior])
             )
         agent.ledger[agent.behavior] = updated_ledger_amt
 
-        # Reset payoffs for the next time step.
+        # Reset step payoff for the next time step.
         agent.step_payoff = 0.0
-        # Softmax annealing.
-        if model.annealing
-            agent.τ -= agent.dτ
-        end
-        
+
     end
 
     # If the model has gone steps_per_round time steps since the last model
-    # update, evolve the three social learning traits.
+    # update, evolve.
     if model.tick % model.steps_per_round == 0
 
         evolve!(model)
 
-        set_new_optimal_behavior = false
-        if model.vertical && (rand() < model.env_uncertainty)
+        if (model.env_uncertainty ≠ 0.0) && (rand(model.rng) < model.env_uncertainty)
+            model.optimal_behavior = sample(filter(b -> b ≠ model.optimal_behavior,
+                                            1:model.nbehaviors))
 
-            model.optimal_behavior = sample(1:model.nbehaviors)
-            model.base_payoffs = [model.low_payoff for _ in 1:model.nbehaviors]
-            model.base_payoffs[model.optimal_behavior] = model.high_payoff
-
-            set_new_optimal_behavior = true
+            model.expected_payoffs = repeat([model.low_payoff], model.nbehaviors)
+            model.expected_payoffs[model.optimal_behavior] = model.high_payoff
         end
 
         for agent in allagents(model)
 
-            agent.prev_net_payoff = 0.0
+            # Reset net payoff and step payoffs.
             agent.net_payoff = 0.0
-            agent.behavior = sample(1:model.nbehaviors)
-
-            # Reset softmax temperature to re-start in-round annealing.
-            agent.τ = model.τ_init
-
-            if set_new_optimal_behavior
-                agent.payoffs = draw_payoffs(
-                    model.base_payoffs, model.payoff_variance
-                )
-            end
-
+            agent.step_payoff = 0.0
         end
 
+        # Next two conditionals detect when to stop for the 
+        # stop-after-one-fixated-generation stopping function.
+        model.stop = model.fixated
+
+        # This one first detects whether the model is fixated, which will
+        # be read above after one final generation runs.
+        n_sl = sum(a.social_learner for a in allagents(model))
+        model.fixated = (n_sl == 0.0) || (n_sl == nagents(model))
     end
 
     model.tick += 1
-end
-
-
-function select_reproducers(model::ABM)
-    all_net_payoffs = map(a -> a.net_payoff, allagents(model))
-
-    N = nagents(model)
-    select_idxs = sample(
-        1:N, Weights(all_net_payoffs), N; replace=true
-    )
-    
-    ret = collect(allagents(model))[select_idxs]
-    return ret
-end
-
-
-function repro_with_mutations!(model, parent, child)
-    
-    # Overwrite dead agent's information either with unique information or
-    # properties of parent as appropriate.
-    child.uuid = uuid4()
-    child.age = 0
-
-    # Setting dead agent's fields with relevant repro agent's, no mutation yet.
-    child.parent = parent.uuid
-
-    if model.vertical
-        transmit_vertical!(parent, child)
-    else
-        child.ledger = zeros(Float64, model.nbehaviors)
-        child.behavior_count = zeros(Int64, model.nbehaviors)
-    end
-    
-    # Social learning frequency and vertical squeeze amount are both inherited
-    # with mutation.
-    if model.vertical
-        mutparams = [:soclearnfreq, :vertical_transmag]
-    else
-        mutparams = [:soclearnfreq]
-    end
-
-    for mutparam in mutparams
-        mutdistro = model.mutation_distro
-        newparamval = getproperty(parent, mutparam) + rand(mutdistro)
-
-        # Learning parameters are limited to [0.0, 1.0].
-        if newparamval > 1.0
-            newparamval = 1.0
-        elseif newparamval < 0.0
-            newparamval = 0.0
-        end
-        
-        # Set child agent to have mutated param value.
-        setproperty!(
-            child, mutparam, newparamval
-        )
-    end
-end
-
-
-function transmit_vertical!(parent, child)
-
-    parent_mean = mean.(parent.ledger)
-
-    child.ledger = 
-        parent_mean + 
-        (parent.vertical_transmag*(parent.ledger .- parent_mean))
-
-    child.behavior_count = 
-        Integer.(
-            floor.(parent.behavior_count .* parent.vertical_transmag)
-        )
-
-    # Cap inherited behavior counts at 1.
-    child.behavior_count[child.behavior_count .> 0] .= 1
-
-    child.behavior = parent.behavior
 end
 
 
@@ -399,10 +248,61 @@ learning strategy with mutation; (2) die off.
 """
 function evolve!(model::ABM)
 
-    reproducers = select_reproducers(model)
-    terminals = collect(allagents(model))
+    agents_coll = collect(allagents(model))
+    prevgen_copy = deepcopy(agents_coll)
 
-    for (idx, repro_agent) in enumerate(reproducers)
-        repro_with_mutations!(model, repro_agent, terminals[idx])
+    parents = select_parents(model)
+    parents_social_learner_trait = map(parent -> parent.social_learner, parents)
+
+    for (idx, social_learner) in enumerate(parents_social_learner_trait)
+
+        child = agents_coll[idx]
+        child.prev_social_learner = copy(child.social_learner)
+        child.social_learner = social_learner
+
+        if child.social_learner
+
+            # agentsvec = collect(allagents(model)) 
+
+            # Select initial subset at random for prospective teachers.
+            teachers = sample(prevgen_copy, model.nteachers, replace=false)
+
+            # Select teacher with highest payoff.
+            teacher_idx = argmax(map(t -> t.net_payoff, teachers))
+            teacher = teachers[teacher_idx]
+            
+            # Learn teacher's observed exp-weighted average payoffs for each behavior...
+            child.ledger = copy(teacher.ledger)
+            # ...and set observations to 1 if teacher observed the behavior at
+            # least once; set behavior_count to 0 if teacher never observed that
+            # behavior.
+            child.behavior_count = min.(teacher.behavior_count, 1)
+
+        else
+            # If child is not a social learner, ledger and counts are totally reset.
+             child.ledger = zeros(Float64, model.nbehaviors)
+            child.behavior_count = zeros(Int64, model.nbehaviors)
+        end
     end
+
+end
+
+
+"""
+Sample N agents to be parents with replacement, weighted by net payoffs.
+"""
+function select_parents(model::ABM)
+
+    all_net_payoffs = map(a -> a.net_payoff, allagents(model))
+
+    N = nagents(model)
+    
+    parent_idxs = sample(
+        collect(1:N), Weights(all_net_payoffs), N; replace=true
+    )
+
+    ret = collect(allagents(model))[parent_idxs]
+
+    return ret
+
 end

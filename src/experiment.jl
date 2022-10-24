@@ -4,10 +4,16 @@ using DataFrames
 
 using Distributed
 
+# Set up multiprocessing.
 try
     num_cores = parse(Int, ENV["SLURM_CPUS_PER_TASK"])
     addprocs(num_cores)
 catch
+    desired_nprocs = length(Sys.cpu_info())
+
+    if length(procs()) != desired_nprocs
+        addprocs(desired_nprocs - 1)
+    end
 end
 
 
@@ -16,27 +22,27 @@ end
 @everywhere include("model.jl")
 
 
-
-
-
-function experiment(ntrials = 100; 
-                    nagents = 100, 
-                    payoff_variance = [1e-8], 
-                    nbehaviors = [5, 20, 100],
-                    high_payoff = [0.2, 0.9],  # π_high in the paper
-                    low_payoff = [0.1, 0.8],   # π_low in the paper
-                    niter = 10_000, 
-                    steps_per_round = 100,
-                    mutation_magnitude = 0.05, 
-                    regen_payoffs = false,
-                    vertical = true,
-                    whensteps = 1_000,
-                    env_uncertainty = 0.0)
+function experiment(ntrials = 10; 
+                    numagents = 100, 
+                    nbehaviors = [2], #,10,20],
+                    high_payoff = [0.9],  # π_high in the paper
+                    low_payoff = [0.1, 0.45, 0.8],   # π_low in the paper
+                    max_niter = 1000, 
+                    steps_per_round = [1,2,4,8],
+                    whensteps = 100,
+                    env_uncertainty = [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0],
+                    random_init = false,
+                    tau = 0.1,
+                    nteachers = 5,
+                    init_social_learner_prevalence = 0.5,
+                    stop_cond = :fixation_plus_onegen
+                    # env_uncertainty = collect(0.0:0.1:1.0)
+    )
     
     trial_idx = collect(1:ntrials)
 
     params_list = dict_list(
-        @dict payoff_variance steps_per_round nbehaviors high_payoff low_payoff trial_idx vertical env_uncertainty
+        @dict steps_per_round nbehaviors high_payoff low_payoff trial_idx env_uncertainty tau numagents nteachers init_social_learner_prevalence
     )
 
     # We are not interested in cases where high expected payoff is less than
@@ -47,25 +53,45 @@ function experiment(ntrials = 100;
         params_list
     )
 
-    countbehaviors(behaviors) = countmap(behaviors)
+    adata = [(:behavior, countmap), (:social_learner, mean), 
+             (:prev_net_payoff, mean)]
 
-    adata = [(:behavior, countbehaviors), (:soclearnfreq, mean), (:vertical_transmag, mean)]
-    mdata = [:env_uncertainty, :optimal_behavior, :payoff_variance, :trial_idx, :high_payoff, :low_payoff, :nbehaviors, :steps_per_round] 
+    mdata = [:env_uncertainty, :trial_idx, :high_payoff, 
+             :low_payoff, :nbehaviors, :steps_per_round, 
+             :optimal_behavior] 
 
     models = [
         uncertainty_learning_model(;
-            nagents = nagents, 
+            numagents, 
             params...)
-
         for params in params_list
     ]
 
-    return ensemblerun!(
-        models, agent_step!, model_step!, niter; 
+    function stop_condfn(model, step)
+        n_sl = sum(a.social_learner for a in allagents(model))
+
+        fixated = (n_sl == 0.0) || (n_sl == numagents)
+
+        if stop_cond == :fixation_plus_onegen
+            return model.stop
+        elseif stop_cond == :all_social_learners
+            return step == max_niter * model.properties[:steps_per_round]
+        end
+    end
+
+    adf, mdf = ensemblerun!(
+        models, agent_step!, model_step!, stop_condfn; 
         adata, mdata, 
-        when = (model, step) -> ( (step + 1) % whensteps == 0  ||  step == 0 ),
+        when = (model, step) -> ( 
+            # (step % model.properties[:steps_per_round] == 0)  ||  (step == 0) || stop_condfn(model, step) 
+            (step == 0) || stop_condfn(model, step) 
+        ),
         parallel = true
     )
+
+    println("About to return adf, mdf!!!")
+
+    return adf, mdf
 end
 
 
