@@ -70,6 +70,9 @@ a Slurm cluster. Examine `main.sh` to see which Slurm scripts are executed, each
 [`scripts/run_analysis.jl`](scripts/run_analysis.jl), passing the appropriate parameters for the given partition of the input parameter space.
 `scripts/run_analysis.jl` reads command-line arguments, then sets up and runs computational experiments using code from [`src/experiment.jl`](src/experiment.jl).
 
+To perform all computational experiments we analyzed, run also [`sl_expected.sh`](sl_expected.sh), which runs the homogenous all-social-learner 
+simulations used in Figures 4 and 5 of the preprint. The sensitivity analyses are run with their corresponding shell scripts, [`nagents.sh`](nagents.sh), [`nteachers.sh`](nteachers.sh), and [`tau.sh`](tau.sh) (the model uses softmax temperature, $\tau$, not inverse temperature, i.e., "greediness", $\beta = 1 / \tau$).
+
 
 ## Tests
 
