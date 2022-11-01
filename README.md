@@ -81,5 +81,5 @@ the model API and functionality. To run the tests, `include` the test script fro
 Julia REPL:
 
 ```
-julia> include("src/test/runtests.jl")
+julia> using Pkg; Pkg.precompile(); include("src/test/runtests.jl")
 ```
