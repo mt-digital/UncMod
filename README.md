@@ -7,7 +7,8 @@ uncertainty interact to affect the evolution of social learning.
 
 We developed this model to address the need for an improved systematic
 understanding of the relationship between varieties of uncertainty and the
-evolution of social learning.
+evolution of social learning. We introduce and analyze this model in our article
+currently under review, with [preprint available on SocArXiV](https://osf.io/preprints/socarxiv/brqmn/).
 
 
 ## Installation and setup.
