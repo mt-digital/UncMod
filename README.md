@@ -63,6 +63,14 @@ This should print something like this:
 <img width="500" alt="output screenshot" src="https://user-images.githubusercontent.com/2425472/197694394-d9d0d6bc-347e-42bc-b636-0cc7b9ab2d84.png">
 
 
+## Small-scale computational experiments run locally
+
+Agents.jl provides the [`ensemblerun!` function](https://juliadynamics.github.io/Agents.jl/stable/tutorial/#Agents.ensemblerun!) for running ensembles of models. We wrap the `ensemblerun!` function to run our computational experiments using the `experiment` function in [`src/experiment.jl`](src/experiment.jl). This works by first initializing a list of models to pass to `ensemblerun!` initialized with the Cartesian product of individual uncertainty parameter settings.
+
+```julia
+agentdf, modeldf = experiment(2; env_uncertainty=[0.0,0.5,1.0], steps_per_round=[1,2])
+```
+
 ## Computational experiments on a Slurm cluster
 
 For this project, we used the [Sherlock cluster at Stanford University](https://www.sherlock.stanford.edu/) to
