@@ -45,13 +45,19 @@ function experiment(ntrials = 10;
         @dict steps_per_round nbehaviors high_payoff low_payoff trial_idx env_uncertainty tau numagents nteachers init_social_learner_prevalence
     )
 
+    # println("*** length(params_list) pre-filter: ***")
+    # println(length(params_list))
+
     # We are not interested in cases where high expected payoff is less than
     # or equal to the lower expected payoff, only cases where high expected
     # payoff is greater than low expected payoff.
-    params_list = filter(
-        params -> params[:high_payoff] > params[:low_payoff],
-        params_list
-    )
+    # params_list = filter(
+    #     params -> params[:high_payoff] > params[:low_payoff],
+    #     params_list
+    # )
+
+    # println("*** length(params_list) post-filter: ***")
+    # println(length(params_list))
 
     adata = [(:behavior, countmap), (:social_learner, mean), 
              (:prev_net_payoff, mean)]
@@ -83,7 +89,6 @@ function experiment(ntrials = 10;
         models, agent_step!, model_step!, stop_condfn; 
         adata, mdata, 
         when = (model, step) -> ( 
-            # (step % model.properties[:steps_per_round] == 0)  ||  (step == 0) || stop_condfn(model, step) 
             (step == 0) || stop_condfn(model, step) 
         ),
         parallel = true
