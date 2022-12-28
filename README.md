@@ -75,8 +75,8 @@ agentdf, modeldf = experiment(2; env_uncertainty=[0.0,0.5,1.0], steps_per_round=
 
 For this project, we used the [Sherlock cluster at Stanford University](https://www.sherlock.stanford.edu/) to
 run our simulations at scale. The main data can be created by running [`./main.sh`](main.sh) from the root directory on
-a Slurm cluster. Examine `main.sh` to see which Slurm scripts are executed, each of which use call
-[`scripts/run_analysis.jl`](scripts/run_analysis.jl), passing the appropriate parameters for the given partition of the input parameter space.
+a Slurm cluster. Examine `main.sh` to see which Slurm scripts are executed. Each Slurm script runs
+[`scripts/run_analysis.jl`](scripts/run_analysis.jl), using the user-provided parameters for the given partition of the input parameter space.
 `scripts/run_analysis.jl` reads command-line arguments, then sets up and runs computational experiments using code from [`src/experiment.jl`](src/experiment.jl).
 
 To perform all computational experiments we analyzed, run also [`sl_expected.sh`](sl_expected.sh), which runs the homogenous all-social-learner 
