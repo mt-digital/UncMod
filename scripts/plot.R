@@ -1,6 +1,12 @@
 require(dplyr)
 require(ggplot2)
 
+mytheme = theme(axis.line = element_line(), legend.key=element_rect(fill = NA),
+                # text = element_text(size=22),# family = 'PT Sans'),
+                # axis.text.x = element_text(size=12),
+                # axis.text.y=  element_text(size=12), 
+                panel.background = element_rect(fill = "white"))
+
 sl_support_width_plot <- function () {
 
   resdf <- data.frame(
@@ -29,8 +35,14 @@ sl_support_width_plot <- function () {
     }
   }
 
-  ggplot(resdf, aes(x = steps_per_round, y = env_uncertainty, shape = low_payoff)) +
-    geom_point()
+  resdf$low_payoff <- as.factor(resdf$low_payoff)
+
+  g <- ggplot(resdf, aes(x = steps_per_round, y = env_uncertainty, linetype = low_payoff, shape = low_payoff)) +
+    geom_point() + geom_line() + 
+    xlab("Selection-set size = effective lifespan") + 
+    ylab("SL Extinction Variability") + labs(shape = "Low payoff", linetype="Low payoff") + mytheme
+
+  print(g)
 
   return (resdf)
 }
