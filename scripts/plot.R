@@ -38,11 +38,15 @@ sl_support_width_plot <- function () {
   resdf$low_payoff <- as.factor(resdf$low_payoff)
 
   g <- ggplot(resdf, aes(x = steps_per_round, y = env_uncertainty, linetype = low_payoff, shape = low_payoff)) +
-    geom_point() + geom_line() + 
+    geom_point(color="black", size = 4) +
+    geom_point(color="white", size = 3, alpha = 0.6) +
+    geom_line() + 
     xlab("Selection-set size = effective lifespan") + 
     ylab("SL Extinction Variability") + labs(shape = "Low payoff", linetype="Low payoff") + mytheme
 
   print(g)
+  
+  ggsave("~/workspace/Writing/UncMod/Figures/SL_Extinction_Variability.pdf", width = 5, height = 3)
 
   return (resdf)
 }

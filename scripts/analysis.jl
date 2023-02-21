@@ -24,7 +24,7 @@ include("expected_homogenous_payoff.jl")
 PROJECT_THEME = Theme(
     major_label_font="CMU Serif",minor_label_font="CMU Serif", 
     point_size=5.5pt, major_label_font_size = 18pt, 
-    minor_label_font_size = 18pt, key_title_font_size=18pt, 
+    minor_label_font_size = 18pt, key_title_font_size=14pt, 
     line_width = 3.5pt, key_label_font_size=14pt, #grid_line_width = 1.5pt,
     panel_stroke = colorant"black", grid_line_width = 0pt
 )
@@ -474,9 +474,17 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             # soc_ind_expected_equal = calc_soc_ind_equal(low_payoff, nbehaviors)
 
             if yvar == :step
-                colorkeypos = [.01w,-0.240h]
+                if nbehaviors == 2 && low_payoff == 0.1
+                    colorkeypos = [0.75w, -0.20h]
+                else
+                    colorkeypos = [.01w,-0.20h]
+                end
             else
-                colorkeypos = [.05w,0.275h]
+                if nbehaviors == 2 && low_payoff == 0.1
+                    colorkeypos = [0.75w, -0.20h]
+                else
+                    colorkeypos = [.05w,0.275h]
+                end
             end
 
             SEED_COLORS_TRANS = [RGBA(c, 0.7) for c in SEED_COLORS]
@@ -544,7 +552,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                          Guide.yticks(ticks=yticks),
                          # Scale.color_discrete(colorgenfn),
                          Scale.color_discrete(_ -> SEED_COLORS_TRANS),
-                         Guide.colorkey(title="<i>Eff.</i><br><i>Lifespan</i>", pos=colorkeypos),
+                         Guide.colorkey(title="<i>Effective</i>\n<i>Lifespan</i>", pos=colorkeypos),
                          PROJECT_THEME)
             else
                 p = plot(thisdf, x=:env_uncertainty, y=yvar, 
@@ -553,7 +561,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                          Guide.ylabel(""), 
                          Guide.yticks(ticks=yticks),
                          Scale.color_discrete(_ -> SEED_COLORS_TRANS),
-                         Guide.colorkey(title="<i>L</i>", pos=colorkeypos),
+                         Guide.colorkey(title="<i>Effective</i>\n<i>Lifespan</i>", pos=colorkeypos),
                          PROJECT_THEME)
             end
 
@@ -641,14 +649,20 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                 u_eq_yloc = 0.0
                 yticks = 0.1:0.4:0.9
             elseif low_payoff == 0.45
-                u_eq_yloc = 0.45
+                u_eq_yloc = 0.4
                 yticks = 0.40:0.25:0.9
             elseif low_payoff == 0.8
                 u_eq_yloc = 0.800
                 yticks = [0.8, 0.85, 0.9]
             end
 
-            u_eq_ptsize = 4.5pt
+            u_eq_ptsize = 5.0pt
+            
+            if nbehaviors == 2 && low_payoff == 0.1
+                colorkeypos = [0.01w, 0.30h]
+            else
+                colorkeypos = [0.75w, -0.20h]
+            end
 
             p = plot(
                      layer(thisdf, x=:env_uncertainty, y=:geomean_payoff,  
@@ -675,19 +689,19 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                      
                      layer(x=[u_eq_locs[1]], y = [u_eq_yloc], Geom.point,
                            Theme(default_color= SEED_COLORS[1],
-                                 point_shapes=[Shape.cross],
+                                 point_shapes=[Shape.vline],
                                 point_size=u_eq_ptsize)),
                      layer(x=[u_eq_locs[2]], y = [u_eq_yloc], Geom.point,
                            Theme(default_color = SEED_COLORS[2],
-                                 point_shapes=[Shape.cross],
+                                 point_shapes=[Shape.vline],
                                 point_size=u_eq_ptsize)),
                      layer(x=[u_eq_locs[3]], y = [u_eq_yloc], Geom.point,
                            Theme(default_color= SEED_COLORS[3],
-                                 point_shapes=[Shape.cross],
+                                 point_shapes=[Shape.vline],
                                 point_size=u_eq_ptsize)),
                      layer(x=[u_eq_locs[4]], y = [u_eq_yloc], Geom.point,
                            Theme(default_color = SEED_COLORS[4],
-                                 point_shapes=[Shape.cross],
+                                 point_shapes=[Shape.vline],
                                 point_size=u_eq_ptsize)),
                      # xintercept = u_eq_locs,
                      # Geom.vline(; color=SEED_COLORS_TRANS, style=:ldashdot, size=2.5pt),
@@ -696,7 +710,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                      Guide.yticks(ticks=yticks),
                      # Scale.color_discrete(gen_two_colors),
                      Scale.color_discrete(_ -> SEED_COLORS_TRANS), #n -> gen_colors(n)),#; opacity = opacity)),
-                     Guide.colorkey(title="<i>L</i>", pos=[.865w,-0.225h]),
+                     Guide.colorkey(title="<i>Effective</i>\n<i>Lifespan</i>", pos=colorkeypos),
                     # )
                      
                     PROJECT_THEME)
