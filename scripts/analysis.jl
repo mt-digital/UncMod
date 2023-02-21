@@ -544,7 +544,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                          Guide.yticks(ticks=yticks),
                          # Scale.color_discrete(colorgenfn),
                          Scale.color_discrete(_ -> SEED_COLORS_TRANS),
-                         Guide.colorkey(title="<i>L</i>", pos=colorkeypos),
+                         Guide.colorkey(title="<i>Eff.</i><br><i>Lifespan</i>", pos=colorkeypos),
                          PROJECT_THEME)
             else
                 p = plot(thisdf, x=:env_uncertainty, y=yvar, 
