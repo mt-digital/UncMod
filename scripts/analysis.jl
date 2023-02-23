@@ -129,7 +129,7 @@ function main_SL_result(yvar = :mean_social_learner;
                         nbehaviorsvec=[2, 4, 10], 
                         datadir = "data/develop", syncfile_tag = nothing,
                         sl_expected_dir = "data/sl_expected",
-                        nfiles = 100, annotate = true, 
+                        nfiles = 100, annotate = true,
                         show_u_eq = true,
                         show_Gmax = false,
                         version = :paper,
@@ -436,8 +436,9 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
 
             @save aggsoc_file aggsocdf
         end
-
     end
+
+    colorkeytitle = "Effective\nLifespan, <i>L</i>"
 
     for low_payoff in low_payoffs 
 
@@ -475,15 +476,15 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
 
             if yvar == :step
                 if nbehaviors == 2 && low_payoff == 0.1
-                    colorkeypos = [0.75w, -0.20h]
+                    colorkeypos = [0.65w, -0.20h]
                 else
                     colorkeypos = [.01w,-0.20h]
                 end
             else
                 if nbehaviors == 2 && low_payoff == 0.1
-                    colorkeypos = [0.75w, -0.20h]
+                    colorkeypos = [0.65w, -0.20h]
                 else
-                    colorkeypos = [.05w,0.275h]
+                    colorkeypos = [.0w,0.275h]
                 end
             end
 
@@ -552,7 +553,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                          Guide.yticks(ticks=yticks),
                          # Scale.color_discrete(colorgenfn),
                          Scale.color_discrete(_ -> SEED_COLORS_TRANS),
-                         Guide.colorkey(title="<i>Effective</i>\n<i>Lifespan</i>", pos=colorkeypos),
+                         Guide.colorkey(title=colorkeytitle, pos=colorkeypos),
                          PROJECT_THEME)
             else
                 p = plot(thisdf, x=:env_uncertainty, y=yvar, 
@@ -561,7 +562,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                          Guide.ylabel(""), 
                          Guide.yticks(ticks=yticks),
                          Scale.color_discrete(_ -> SEED_COLORS_TRANS),
-                         Guide.colorkey(title="<i>Effective</i>\n<i>Lifespan</i>", pos=colorkeypos),
+                         Guide.colorkey(title=colorkeytitle, pos=colorkeypos),
                          PROJECT_THEME)
             end
 
@@ -661,7 +662,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
             if nbehaviors == 2 && low_payoff == 0.1
                 colorkeypos = [0.01w, 0.30h]
             else
-                colorkeypos = [0.75w, -0.20h]
+                colorkeypos = [0.65w, -0.20h]
             end
 
             p = plot(
@@ -710,7 +711,7 @@ function plot_over_u_sigmoids(final_agg_df, nbehaviors,
                      Guide.yticks(ticks=yticks),
                      # Scale.color_discrete(gen_two_colors),
                      Scale.color_discrete(_ -> SEED_COLORS_TRANS), #n -> gen_colors(n)),#; opacity = opacity)),
-                     Guide.colorkey(title="<i>Effective</i>\n<i>Lifespan</i>", pos=colorkeypos),
+                     Guide.colorkey(title=colorkeytitle, pos=colorkeypos),
                     # )
                      
                     PROJECT_THEME)

@@ -1,5 +1,6 @@
 require(dplyr)
 require(ggplot2)
+library(latex2exp)
 
 mytheme = theme(axis.line = element_line(), legend.key=element_rect(fill = NA),
                 # text = element_text(size=22),# family = 'PT Sans'),
@@ -36,17 +37,19 @@ sl_support_width_plot <- function () {
   }
 
   resdf$low_payoff <- as.factor(resdf$low_payoff)
-
+  
+  inset_label = TeX("Low payoff, $\\pi_{low}$")
+  
   g <- ggplot(resdf, aes(x = steps_per_round, y = env_uncertainty, linetype = low_payoff, shape = low_payoff)) +
     geom_point(color="black", size = 4) +
     geom_point(color="white", size = 3, alpha = 0.6) +
     geom_line() + 
-    xlab("Selection-set size = effective lifespan") + 
-    ylab("SL Extinction Variability") + labs(shape = "Low payoff", linetype="Low payoff") + mytheme
+    xlab("Selection-set size," ~ italic(B) ~ " = effective lifespan," ~ italic(L)) + 
+    ylab(TeX("SL Extinction Variability, $u_e$")) + labs(shape = inset_label, linetype=inset_label) + mytheme
 
   print(g)
   
-  ggsave("~/workspace/Writing/UncMod/Figures/SL_Extinction_Variability.pdf", width = 5, height = 3)
+  ggsave("~/workspace/Writing/UncMod/Figures/SL_Extinction_Variability.pdf", width = 5.25, height = 2.5)
 
   return (resdf)
 }
