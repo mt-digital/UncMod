@@ -45,11 +45,11 @@ sl_support_width_plot <- function () {
     geom_point(color="white", size = 3, alpha = 0.6) +
     geom_line() + 
     xlab("Selection-set size," ~ italic(B) ~ " = effective lifespan," ~ italic(L)) + 
-    ylab(TeX("SL Extinction Variability, $u_e$")) + labs(shape = inset_label, linetype=inset_label) + mytheme
+    ylab(TeX("Social learning ceiling, $u_\text{c}$")) + labs(shape = inset_label, linetype=inset_label) + mytheme
 
   print(g)
   
-  ggsave("~/workspace/Writing/UncMod/Figures/SL_Extinction_Variability.pdf", width = 5.25, height = 2.5)
+  ggsave("~/workspace/Writing/UncMod/Figures/SL_ceiling.pdf", width = 5.25, height = 2.5)
 
   return (resdf)
 }
