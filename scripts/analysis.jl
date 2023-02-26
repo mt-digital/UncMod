@@ -56,7 +56,7 @@ end
 function nteachers_sensitivity_results(yvars = 
                                 [:mean_social_learner, :mean_prev_net_payoff, 
                                  :step], 
-                                nteachers_vals = ["2", "10", "20"];
+                                nteachers_vals = ["2", "20"];
                                 figuredir = "papers/UncMod/Figures", 
                                 nbehaviorsvec=[2, 4, 10], 
                                 nfiles = 100)  # New parallel runs easily do 100 trials per file
