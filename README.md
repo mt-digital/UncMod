@@ -83,6 +83,63 @@ To perform all computational experiments we analyzed, run also [`sl_expected.sh`
 simulations used in Figures 4 and 5 of the preprint. The sensitivity analyses are run with their corresponding shell scripts, [`nagents.sh`](nagents.sh), [`nteachers.sh`](nteachers.sh), and [`tau.sh`](tau.sh) (the model uses softmax temperature, $\tau$, not inverse temperature, i.e., "greediness", $\beta = 1 / \tau$).
 
 
+## Analysis
+
+Building the analysis figures is a multi-step progress that could have
+benefitted from slightly more automation, but of course premature optimization
+is always to be avoided, and the following was good enough for developing
+publication-ready figures. Part of the complications came from trying to use
+Julia to make all figures, when, in my opinion, `ggplot2` (or possibly any
+approach using R) provides much more useful tools that could have made this
+easier.
+
+So, building all the figures requires a few steps, which are described below.
+
+### Main analyses
+
+First, download all three datasets available via our associated [Open Science Foundation (OSF)
+repository](https://osf.io/8kf7s). The three files are
+
+- `main.zip`
+- `sensitivity.zip`
+- `sl_expected.zip`
+
+### Sensitivity analysis
+
+`scripts/analysis.jl` provides three helper functions for each of the three
+sensitivity analyses. First, download and unzip the output data we have shared
+on OSF (LINK). Then, create a directory for the plots to go after they are
+created for each sensitivity parameter setting and each of the other uncertainty
+parameter settings; call the directory `sensitivity_figures`. Unfortunately,
+it is necessary to create six additional subdirectories for each of the 
+two settings of the three auxiliary parameters. Do the following to make the
+necessary directories in a bash terminal 
+(and please excuse the somewhat inconsistent naming scheme):
+
+```
+mkdir
+sensitivity_figures/{numagents=50,numagents=200,nteachers=2,nteachers=20,sensitivity_tau=0.01,sensitivity_tau=0.1}
+```
+
+Then in the Julia REPL, run each of the following commands:
+
+```julia
+N_sensitivity_results([:mean_social_learner]; figuredir = "sensitivity_figures")
+```
+
+```julia
+nteachers_sensitivity_results([:mean_social_learner]; figuredir = "sensitivity_figures")
+```
+
+```julia
+tau_sensitivity_results([:mean_social_learner]; figuredir = "sensitivity_figures")
+```
+
+These functions will automatically find the directories you created and save
+each sensitivity plot for each setting there. See ll. 32 - 96 in
+`scripts/analysis.jl` for the full definition of what these functions do to 
+create the sensitivity plots of social learning fixation frequency.
+
 ## Tests
 
 Unit tests ensure the model is working properly and provide documentation of
