@@ -83,6 +83,14 @@ To perform all computational experiments we analyzed, run also [`sl_expected.sh`
 simulations used in Figures 4 and 5 of the preprint. The sensitivity analyses are run with their corresponding shell scripts, [`nagents.sh`](nagents.sh), [`nteachers.sh`](nteachers.sh), and [`tau.sh`](tau.sh) (the model uses softmax temperature, $\tau$, not inverse temperature, i.e., "greediness", $\beta = 1 / \tau$).
 
 
+### More steps to build data folders as required for analysis
+
+There are more steps required to prepare the data for analysis,
+i.e., to put data in the same form as can be found on our [OSF
+repository](https://osf.io/t8exa/). In the future it may help to automate this.
+
+
+
 ## Analysis
 
 Building the analysis figures is a multi-step progress that could have
@@ -95,20 +103,26 @@ easier.
 
 So, building all the figures requires a few steps, which are described below.
 
-### Main analyses
+### Download .zip files from OSF
 
-First, download all three datasets available via our associated [Open Science Foundation (OSF)
+If you have not run the simulations on a cluster but want to run our analyses
+on our outcome data we used for the paper,
+please download the three outcome datasets available on our associated [Open Science Foundation (OSF)
 repository](https://osf.io/8kf7s). The three files are
 
 - `main.zip`
 - `sensitivity.zip`
 - `sl_expected.zip`
 
+
+### Main analyses
+
+
 ### Sensitivity analysis
 
 `scripts/analysis.jl` provides three helper functions for each of the three
-sensitivity analyses. First, download and unzip the output data we have shared
-on OSF (LINK). Then, create a directory for the plots to go after they are
+sensitivity analyses. With the zip files downloaded and unzipped in the `data`
+directory, create another directory for the plots to go after they are
 created for each sensitivity parameter setting and each of the other uncertainty
 parameter settings; call the directory `sensitivity_figures`. Unfortunately,
 it is necessary to create six additional subdirectories for each of the 
