@@ -2,13 +2,15 @@ require(dplyr)
 require(ggplot2)
 library(latex2exp)
 
+
 mytheme = theme(axis.line = element_line(), legend.key=element_rect(fill = NA),
                 # text = element_text(size=22),# family = 'PT Sans'),
                 # axis.text.x = element_text(size=12),
                 # axis.text.y=  element_text(size=12), 
                 panel.background = element_rect(fill = "white"))
 
-sl_support_width_plot <- function () {
+
+sl_ceiling_plot <- function () {
 
   resdf <- data.frame(
     lifespan_selsetsize = integer(), 
@@ -49,7 +51,5 @@ sl_support_width_plot <- function () {
 
   print(g)
   
-  ggsave("~/workspace/Writing/UncMod/Figures/SL_ceiling.pdf", width = 5.25, height = 2.5)
-
-  return (resdf)
+  ggsave("main_figures/SL_ceiling.pdf", width = 5.25, height = 2.5)
 }
