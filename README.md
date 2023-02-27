@@ -137,7 +137,13 @@ please view [the script](scripts/organize_data.sh) listed above.
 
 Now the data have been prepared, and output directories created, run
 another script that does all main and supplemental analyses,
-[scripts/run_all_analyses.jl](scripts/run_all_analyses.jl). When this is first
+[scripts/run_all_analyses.jl](scripts/run_all_analyses.jl):
+
+```
+julia scripts/run_all_analyses.jl
+```
+
+When this is first
 run, it will take a long time to aggregate the main datasets since these
 captured every time step in order to measure strength of selection (Figure 4 in
 the paper). When the script first runs it creates an aggregated data file that
@@ -150,6 +156,7 @@ Loading data from files matching data/main/*nbehaviors=[4* for aggregation
 Loading data from files matching data/main/*nbehaviors=[10* for aggregation
 ```
 
+Unfortunately there are further steps still to using these figures to create the figures found in our paper. Please see the LaTeX source and `makefile` build script in our paper repository: https://github.com/mt-digital/UncMod-JournalArticle
 
 ## Tests
 
