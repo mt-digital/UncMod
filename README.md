@@ -95,50 +95,61 @@ easier.
 
 So, building all the figures requires a few steps, which are described below.
 
-### Main analyses
+### Transfer or download datasets
 
-First, download all three datasets available via our associated [Open Science Foundation (OSF)
-repository](https://osf.io/8kf7s). The three files are
+If you ran the simulations on a cluster, make zip files of all outputs and
+use `scp` to transfer those to your local machine, then skip ahead and follow
+the instructions for organizing the output data, setting up output directories,
+and running the analysis scripts.
+
+To download the datasets, please get them from our associated [Open Science Foundation (OSF)
+repository](https://osf.io/8kf7s). These should be saved to the `data` directory
+which is included in this GitHub repository, and is empty except for an empty
+file called ".include" that we use to include an empty directory in the repo. 
+The three files to download from OSF are
 
 - `main.zip`
 - `sensitivity.zip`
 - `sl_expected.zip`
 
-### Sensitivity analysis
-
-`scripts/analysis.jl` provides three helper functions for each of the three
-sensitivity analyses. First, download and unzip the output data we have shared
-on OSF (LINK). Then, create a directory for the plots to go after they are
-created for each sensitivity parameter setting and each of the other uncertainty
-parameter settings; call the directory `sensitivity_figures`. Unfortunately,
-it is necessary to create six additional subdirectories for each of the 
-two settings of the three auxiliary parameters. Do the following to make the
-necessary directories in a bash terminal 
-(and please excuse the somewhat inconsistent naming scheme):
+When these are downloaded, use a terminal to navigate to the `data` directory,
+then unzip the files:
 
 ```
-mkdir
-sensitivity_figures/{numagents=50,numagents=200,nteachers=2,nteachers=20,sensitivity_tau=0.01,sensitivity_tau=0.1}
+unzip main.zip && unzip sensitivity.zip && unzip sl_expected.zip
 ```
 
-Then in the Julia REPL, run each of the following commands:
+### Organize supplemental data and create output figure directories
 
-```julia
-N_sensitivity_results([:mean_social_learner]; figuredir = "sensitivity_figures")
+Use the script `scripts/organize_data.sh` to organize the supplemental data into
+appropriately-named directories that are expected by the analysis scripts. Run
+the following in a terminal command line
+
+```
+./scripts/organize_data.sh
 ```
 
-```julia
-nteachers_sensitivity_results([:mean_social_learner]; figuredir = "sensitivity_figures")
+Supplemental data directory names are not intuitive, and the names evolved rather arbitrarily
+as the project went on. Sorry for this, but to see how this works, 
+please view [the script](scripts/organize_data.sh) listed above.
+
+### Run the analyses
+
+Now the data have been prepared, and output directories created, run
+another script that does all main and supplemental analyses,
+[scripts/run_all_analyses.jl](scripts/run_all_analyses.jl). When this is first
+run, it will take a long time to aggregate the main datasets since these
+captured every time step in order to measure strength of selection (Figure 4 in
+the paper). When the script first runs it creates an aggregated data file that
+will be loaded on subsequent analysis runs. While this data aggregation runs 
+you will see the following messages:
+
+```
+Loading data from files matching data/main/*nbehaviors=[2* for aggregation
+Loading data from files matching data/main/*nbehaviors=[4* for aggregation
+Loading data from files matching data/main/*nbehaviors=[10* for aggregation
 ```
 
-```julia
-tau_sensitivity_results([:mean_social_learner]; figuredir = "sensitivity_figures")
-```
-
-These functions will automatically find the directories you created and save
-each sensitivity plot for each setting there. See ll. 32 - 96 in
-`scripts/analysis.jl` for the full definition of what these functions do to 
-create the sensitivity plots of social learning fixation frequency.
 
 ## Tests
 
