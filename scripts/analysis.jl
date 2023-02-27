@@ -29,14 +29,11 @@ PROJECT_THEME = Theme(
     panel_stroke = colorant"black", grid_line_width = 0pt
 )
 
-function N_sensitivity_results(yvars = 
-                                [:mean_social_learner, :mean_prev_net_payoff, 
-                                 :step]; 
-                                Ns = ["50", "200"],
-                                figuredir = "papers/UncMod/Figures/supplement", 
-                                nbehaviorsvec=[2, 4, 10], annotate = false,
-                                nfiles = 100
-                                ) 
+function N_sensitivity_results(yvars = :mean_social_learner; 
+                               Ns = ["50", "200"],
+                               figuredir = "supplement_figures", 
+                               nbehaviorsvec=[2, 4, 10], annotate = false,
+                               nfiles = 100) 
 
     for N in Ns
         for yvar in yvars
@@ -57,7 +54,7 @@ function nteachers_sensitivity_results(yvars =
                                 [:mean_social_learner, :mean_prev_net_payoff, 
                                  :step], 
                                 nteachers_vals = ["2", "20"];
-                                figuredir = "papers/UncMod/Figures", 
+                                figuredir = "supplement_figures", 
                                 nbehaviorsvec=[2, 4, 10], 
                                 nfiles = 100)  # New parallel runs easily do 100 trials per file
     for nteachers in nteachers_vals
@@ -74,13 +71,10 @@ function nteachers_sensitivity_results(yvars =
     end
 end
 
-function tau_sensitivity_results(yvars = 
-                                [:mean_social_learner, :mean_prev_net_payoff, 
-                                 :step], 
-                                taus = ["0.01", "1.0"];
-                                figuredir = "papers/UncMod/Figures/supplement", 
-                                nbehaviorsvec=[2, 4, 10], 
-                                nfiles = 100)  # New parallel runs easily do 100 trials per file
+function tau_sensitivity_results(taus = ["0.01", "1.0"];
+                                 figuredir = "supplement_figures", 
+                                 nbehaviorsvec=[2, 4, 10], 
+                                 nfiles = 100)  # New parallel runs easily do 100 trials per file
     for tau in taus
         for yvar in yvars
             # Currently have to manually separate files from tau_sensitivity dir
@@ -125,11 +119,11 @@ end
 
 function main_SL_result(yvar = :mean_social_learner; 
                         opacity = 0.8,
-                        figuredir = "papers/UncMod/Figures", 
+                        figuredir = "main_figures", 
                         nbehaviorsvec=[2, 4, 10], 
-                        datadir = "data/develop", syncfile_tag = nothing,
+                        datadir = "data/main", syncfile_tag = nothing,
                         sl_expected_dir = "data/sl_expected",
-                        nfiles = 100, annotate = true,
+                        nfiles = 100, annotate = false,
                         show_u_eq = true,
                         show_Gmax = false,
                         version = :paper,
@@ -956,12 +950,7 @@ function make_line_elements(; elemwidth = 11pt, linelen = 1.75inch,
 end
 
 
-function make_payoffs_timeseries(u, pilow, B, L; ngenerations = 30,        
-                                 numagents = 1000, whensteps = 1, 
-                                 init_sl = 0.5)
-
-    # homogenous_adata = [(:behavior, countmap), (:social_learner, mean),
-    #                     (:prev_net_payoff, mean)]
+function make_payoffs_timeseries(u, pilow, B, L; numagents = 1000, init_sl = 0.5)
 
     mdata = [:env_uncertainty, :trial_idx, :high_payoff,
              :low_payoff, :nbehaviors, :steps_per_round, :optimal_behavior]
@@ -1007,7 +996,7 @@ end
 
 function plot_payoff_timeseries(sim_adf, sim_mdf, env_uncertainty, low_payoff, 
                                 nbehaviors, L; 
-                                gma_period = 5, figuredir = nothing,
+                                gma_period =3, figuredir = "main_figures",
                                 xticks = :auto)
 
     set_default_plot_size(9inch, 5inch)

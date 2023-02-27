@@ -83,6 +83,81 @@ To perform all computational experiments we analyzed, run also [`sl_expected.sh`
 simulations used in Figures 4 and 5 of the preprint. The sensitivity analyses are run with their corresponding shell scripts, [`nagents.sh`](nagents.sh), [`nteachers.sh`](nteachers.sh), and [`tau.sh`](tau.sh) (the model uses softmax temperature, $\tau$, not inverse temperature, i.e., "greediness", $\beta = 1 / \tau$).
 
 
+## Analysis
+
+Building the analysis figures is a multi-step progress that could have
+benefitted from slightly more automation, but of course premature optimization
+is always to be avoided, and the following was good enough for developing
+publication-ready figures. Part of the complications came from trying to use
+Julia to make all figures, when, in my opinion, `ggplot2` (or possibly any
+approach using R) provides much more useful tools that could have made this
+easier.
+
+So, building all the figures requires a few steps, which are described below.
+
+### Transfer or download datasets
+
+If you ran the simulations on a cluster, make zip files of all outputs and
+use `scp` to transfer those to your local machine, then skip ahead and follow
+the instructions for organizing the output data, setting up output directories,
+and running the analysis scripts.
+
+To download the datasets, please get them from our associated [Open Science Foundation (OSF)
+repository](https://osf.io/8kf7s). These should be saved to the `data` directory
+which is included in this GitHub repository, and is empty except for an empty
+file called ".include" that we use to include an empty directory in the repo. 
+The three files to download from OSF are
+
+- `main.zip`
+- `sensitivity.zip`
+- `sl_expected.zip`
+
+When these are downloaded, use a terminal to navigate to the `data` directory,
+then unzip the files:
+
+```
+unzip main.zip && unzip sensitivity.zip && unzip sl_expected.zip
+```
+
+### Organize supplemental data and create output figure directories
+
+Use the script `scripts/organize_data.sh` to organize the supplemental data into
+appropriately-named directories that are expected by the analysis scripts. Run
+the following in a terminal command line
+
+```
+./scripts/organize_data.sh
+```
+
+Supplemental data directory names are not intuitive, and the names evolved rather arbitrarily
+as the project went on. Sorry for this, but to see how this works, 
+please view [the script](scripts/organize_data.sh) listed above.
+
+### Run the analyses
+
+Now the data have been prepared, and output directories created, run
+another script that does all main and supplemental analyses,
+[scripts/run_all_analyses.jl](scripts/run_all_analyses.jl):
+
+```
+julia scripts/run_all_analyses.jl
+```
+
+When this is first
+run, it will take a long time to aggregate the main datasets since these
+captured every time step in order to measure strength of selection (Figure 4 in
+the paper). When the script first runs it creates an aggregated data file that
+will be loaded on subsequent analysis runs. While this data aggregation runs 
+you will see the following messages:
+
+```
+Loading data from files matching data/main/*nbehaviors=[2* for aggregation
+Loading data from files matching data/main/*nbehaviors=[4* for aggregation
+Loading data from files matching data/main/*nbehaviors=[10* for aggregation
+```
+
+Unfortunately there are further steps still to using these figures to create the figures found in our paper. Please see the LaTeX source and `makefile` build script in our paper repository: https://github.com/mt-digital/UncMod-JournalArticle
+
 ## Tests
 
 Unit tests ensure the model is working properly and provide documentation of
