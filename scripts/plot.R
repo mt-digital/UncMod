@@ -15,7 +15,7 @@ sl_ceiling_plot <- function () {
   resdf <- data.frame(
     lifespan_selsetsize = integer(), 
     low_payoff = double(), 
-    sl_support_width = double()
+    sl_ceiling = double()
   )
 
   for (selection_set_size in c(2, 4, 10)) {
