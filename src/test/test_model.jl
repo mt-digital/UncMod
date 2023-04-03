@@ -1,8 +1,3 @@
-using Test
-
-using DrWatson
-quickactivate("../../")
-include("../model.jl")
 
 
 @testset "Individual and social learners should be initialized as expected between generations" begin
