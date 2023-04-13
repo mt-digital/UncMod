@@ -212,6 +212,7 @@ function model_step!(model)
 
         evolve!(model)
 
+        # Update optimal behavior.
         if (model.env_uncertainty ≠ 0.0) && (rand(model.rng) < model.env_uncertainty)
             model.optimal_behavior = sample(filter(b -> b ≠ model.optimal_behavior,
                                             1:model.nbehaviors))
@@ -280,7 +281,7 @@ function evolve!(model::ABM)
 
         else
             # If child is not a social learner, ledger and counts are totally reset.
-             child.ledger = zeros(Float64, model.nbehaviors)
+            child.ledger = zeros(Float64, model.nbehaviors)
             child.behavior_count = zeros(Int64, model.nbehaviors)
         end
     end
