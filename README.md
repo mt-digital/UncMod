@@ -100,7 +100,12 @@ So, building all the figures requires a few steps, which are described below.
 If you ran the simulations on a cluster, make zip files of all outputs and
 use `scp` to transfer those to your local machine, then skip ahead and follow
 the instructions for organizing the output data, setting up output directories,
-and running the analysis scripts.
+and running the analysis scripts. To make the zip file according to the necessary 
+naming conventions, from the root project directory run
+
+```
+zip -r data.zip data/*
+```
 
 To download the datasets, please visit the associated [Open Science Foundation (OSF)
 repository](https://osf.io/8kf7s). Download `data.zip` to the main project folder,
