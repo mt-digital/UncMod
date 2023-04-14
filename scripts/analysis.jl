@@ -3,6 +3,7 @@ quickactivate("..")
 
 using CategoricalArrays
 using Chain
+using CSV
 
 using DataFrames
 using DataFramesMeta
@@ -29,7 +30,7 @@ PROJECT_THEME = Theme(
     panel_stroke = colorant"black", grid_line_width = 0pt
 )
 
-function N_sensitivity_results(yvars = :mean_social_learner; 
+function N_sensitivity_results(yvars = [:mean_social_learner]; 
                                Ns = ["50", "200"],
                                figuredir = "supplement_figures", 
                                nbehaviorsvec=[2, 4, 10], annotate = false,
@@ -51,8 +52,7 @@ end
 
 
 function nteachers_sensitivity_results(yvars = 
-                                [:mean_social_learner, :mean_prev_net_payoff, 
-                                 :step], 
+                                       [:mean_social_learner], # :mean_prev_net_payoff, :step], 
                                 nteachers_vals = ["2", "20"];
                                 figuredir = "supplement_figures", 
                                 nbehaviorsvec=[2, 4, 10], 
@@ -65,7 +65,7 @@ function nteachers_sensitivity_results(yvars =
             # separate if they are. This is done for compat with main_SL_result.
             # datadir = "data/nteachers_sensitivity/nteachers=$nteachers"
             datadir = "data/nteachers_sensitivity/nteachers=$nteachers"
-            main_SL_result(yvar; figuredir = "$figuredir/supplement/nteachers=$nteachers", 
+            main_SL_result(yvar; figuredir = "$figuredir/nteachers=$nteachers", 
                            datadir, nfiles, syncfile_tag="nteachers=$nteachers", annotate=false)
         end
     end
@@ -76,16 +76,15 @@ function tau_sensitivity_results(taus = ["0.01", "1.0"];
                                  nbehaviorsvec=[2, 4, 10], 
                                  nfiles = 100)  # New parallel runs easily do 100 trials per file
     for tau in taus
-        for yvar in yvars
-            # Currently have to manually separate files from tau_sensitivity dir
-            # from server into tau$tau directories locally.
-            # TODO Add code to check if these are available and create and automatically
-            # separate if they are. This is done for compat with main_SL_result.
-            datadir = "data/tau/$tau"
-            main_SL_result(yvar; figuredir = "$figuredir/sensitivity_tau=$tau", 
-                           datadir, nfiles, annotate = false, 
-                           syncfile_tag="tau=$tau")
-        end
+        # Currently have to manually separate files from tau_sensitivity dir
+        # from server into tau$tau directories locally.
+        # TODO Add code to check if these are available and create and automatically
+        # separate if they are. This is done for compat with main_SL_result.
+        datadir = "data/tau/$tau"
+        main_SL_result(:mean_social_learner; 
+                       figuredir = "$figuredir/sensitivity_tau=$tau", 
+                       datadir, nfiles, annotate = false, 
+                       syncfile_tag="tau=$tau")
     end
 end
 
@@ -147,6 +146,11 @@ function main_SL_result(yvar = :mean_social_learner;
             aggdf = aggregate_final_timestep(df, yvar)
             @save aggdf_file aggdf
         end
+
+        if yvar == :mean_social_learner
+            CSV.write("csvdata/aggdf_meansoc_B=$nbehaviors.csv", aggdf)
+        end
+        
 
         plot_over_u_sigmoids(aggdf, nbehaviors, yvar; 
                              figuredir, nfiles, opacity, annotate, 

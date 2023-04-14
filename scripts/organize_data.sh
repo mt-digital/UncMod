@@ -20,6 +20,8 @@ mkdir data/nteachers_sensitivity/nteachers={2,20}
 # in the code we used tau, the softmax temperature, and this is reflected in our
 # data naming scheme.
 mkdir data/tau/{0.01,1.0}
+# We also need a directory to write data CSV's to for making social learining ceiling plot.
+mkdir csvdata/
 
 # Now move sensitivity analysis files to the appropriate directories.
 mv data/N_sensitivity/*numagents=50* data/N_sensitivity/numagents=50
@@ -29,8 +31,7 @@ mv data/nteachers_sensitivity/*nteachers=2* data/nteachers_sensitivity/nteachers
 mv data/tau/*tau=[0.01* data/tau/0.01
 mv data/tau/*tau=[1.0* data/tau/1.0
 
-
 # Create figure output directories.
 mkdir -p main_figures \
-    supplement_figures/{sensitivity_tau=0.01,sensitivity_tau=1.0,numagents=200,numagents=50,tau=0.01,tau=1.0}
+    supplement_figures/{sensitivity_tau=0.01,sensitivity_tau=1.0,numagents=200,numagents=50,tau=0.01,tau=1.0,nteachers=2,nteachers=20}
 

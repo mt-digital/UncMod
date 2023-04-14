@@ -102,22 +102,9 @@ use `scp` to transfer those to your local machine, then skip ahead and follow
 the instructions for organizing the output data, setting up output directories,
 and running the analysis scripts.
 
-To download the datasets, please get them from our associated [Open Science Foundation (OSF)
-repository](https://osf.io/8kf7s). These should be saved to the `data` directory
-which is included in this GitHub repository, and is empty except for an empty
-file called ".include" that we use to include an empty directory in the repo. 
-The three files to download from OSF are
-
-- `main.zip`
-- `sensitivity.zip`
-- `sl_expected.zip`
-
-When these are downloaded, use a terminal to navigate to the `data` directory,
-then unzip the files:
-
-```
-unzip main.zip && unzip sensitivity.zip && unzip sl_expected.zip
-```
+To download the datasets, please visit the associated [Open Science Foundation (OSF)
+repository](https://osf.io/8kf7s). Download `data.zip` to the main project folder,
+then unzip it. 
 
 ### Organize supplemental data and create output figure directories
 
@@ -128,6 +115,8 @@ the following in a terminal command line
 ```
 ./scripts/organize_data.sh
 ```
+
+There will be some warning messages, please ignore these.
 
 Supplemental data directory names are not intuitive, and the names evolved rather arbitrarily
 as the project went on. Sorry for this, but to see how this works, 
@@ -140,7 +129,7 @@ another script that does all main and supplemental analyses,
 [scripts/run_all_analyses.jl](scripts/run_all_analyses.jl):
 
 ```
-julia scripts/run_all_analyses.jl
+julia scripts/run_all_analyses.jl && Rscript scripts/plot.R
 ```
 
 When this is first
@@ -148,7 +137,7 @@ run, it will take a long time to aggregate the main datasets since these
 captured every time step in order to measure strength of selection (Figure 4 in
 the paper). When the script first runs it creates an aggregated data file that
 will be loaded on subsequent analysis runs. While this data aggregation runs 
-you will see the following messages:
+you will see the following messages, plus several similar ones:
 
 ```
 Loading data from files matching data/main/*nbehaviors=[2* for aggregation

@@ -1,15 +1,8 @@
 using DrWatson; quickactivate("."); 
-using RCall
 include("analysis.jl")
 
-
-# Main analysis figures in order of appearance.
+# Main analysis figures in order of appearance. First one makes CSV needed for next step.
 main_SL_result(:mean_social_learner)
-# Figure 3 of social learning ceiling; R code called from Julia using RCall.jl.
-R"""
-source("scripts/plot.R")
-sl_ceiling_plot()
-"""
 main_SL_result(:mean_prev_net_payoff)
 main_SL_result(:step)
 
@@ -33,3 +26,5 @@ nteachers_sensitivity_results()
 # We reported inverse temperature, i.e. "greediness", beta in paper, but used
 # softmax temperature, i.e. exploration paramater, in code, hence "tau" here.
 tau_sensitivity_results()
+
+
